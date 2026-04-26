@@ -1,0 +1,84 @@
+name: travel_mark
+description: "A Flutter travel journal app with map markers and backup features."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # Data classes
+  freezed_annotation: ^3.0.0
+  json_annotation: ^4.9.0
+
+  # Database
+  sqflite: ^2.4.2
+  path: ^1.9.1
+
+  # Utilities
+  uuid: ^4.5.1
+
+  # Map & Location
+  google_maps_flutter: ^2.10.0
+  geolocator: ^13.0.1
+  permission_handler: ^11.4.0
+
+  # Photo picker & file system
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
+
+  # 開啟外部連結（座標開啟 Google Maps）
+  url_launcher: ^6.3.1
+
+  # 地圖標記聚合（ClusterManager）
+  google_maps_cluster_manager: ^3.0.0
+
+  # Excel 匯出／匯入
+  excel: ^4.0.2
+
+  # 檔案選取器（匯入時讓使用者選取 .xlsx；備份還原選取 .db）
+  file_picker: ^6.1.1
+
+  # 設定持久化
+  shared_preferences: ^2.3.3
+
+  # App 版本資訊（設定頁關於區塊）
+  package_info_plus: ^9.0.1
+
+  # Google 登入與 Drive 備份
+  google_sign_in: ^6.2.1
+  googleapis: ^12.0.0
+  http: ^1.2.0
+
+  # ZIP 壓縮（備份打包 DB + 照片）
+  archive: ^3.4.9
+
+  # UI
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Code generation
+  build_runner: ^2.4.14
+  riverpod_generator: ^2.6.3
+  freezed: ^3.0.0
+  json_serializable: ^6.9.3
+  custom_lint: ^0.7.5
+  riverpod_lint: ^2.6.3
+
+flutter:
+  uses-material-design: true

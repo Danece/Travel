@@ -1,0 +1,16 @@
+import '../models/marker_model.dart';
+
+abstract interface class MarkerLocalDatasource {
+  Future<List<MarkerModel>> getAll();
+  Future<MarkerModel?> getById(String id);
+  Future<List<MarkerModel>> search({
+    String? title,
+    String? country,
+    int? minRating,
+    DateTime? startDate,
+    DateTime? endDate,
+  });
+  Future<void> insert(MarkerModel model);
+  Future<void> update(MarkerModel model);
+  Future<void> delete(String id);
+}

@@ -1,0 +1,50 @@
+import '../../domain/entities/marker_entity.dart';
+import '../../domain/repositories/marker_repository.dart';
+import '../datasources/marker_local_datasource.dart';
+import '../models/marker_model.dart';
+
+class MarkerRepositoryImpl implements MarkerRepository {
+  const MarkerRepositoryImpl(this._datasource);
+  final MarkerLocalDatasource _datasource;
+
+  @override
+  Future<List<MarkerEntity>> getAllMarkers() async {
+    final models = await _datasource.getAll();
+    return models.map((m) => m.toEntity()).toList();
+  }
+
+  @override
+  Future<MarkerEntity?> getMarkerById(String id) async {
+    final model = await _datasource.getById(id);
+    return model?.toEntity();
+  }
+
+  @override
+  Future<List<MarkerEntity>> searchMarkers({
+    String? title,
+    String? country,
+    int? minRating,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final models = await _datasource.search(
+      title: title,
+      country: country,
+      minRating: minRating,
+      startDate: startDate,
+      endDate: endDate,
+    );
+    return models.map((m) => m.toEntity()).toList();
+  }
+
+  @override
+  Future<void> insertMarker(MarkerEntity marker) =>
+      _datasource.insert(MarkerModel.fromEntity(marker));
+
+  @override
+  Future<void> updateMarker(MarkerEntity marker) =>
+      _datasource.update(MarkerModel.fromEntity(marker));
+
+  @override
+  Future<void> deleteMarker(String id) => _datasource.delete(id);
+}
