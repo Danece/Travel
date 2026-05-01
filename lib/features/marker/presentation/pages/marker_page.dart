@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
@@ -27,6 +29,9 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
   // ── 搜尋狀態 ───────────────────────────────────────────────────────────────
   final _searchController = TextEditingController();
 
+  // 效能優化：debounce Timer，避免每個字元都觸發 SQLite 查詢
+  Timer? _debounceTimer;
+
   // ── 篩選狀態 ───────────────────────────────────────────────────────────────
   /// 目前選取的國家清單（空表示不篩選）
   Set<String> _selectedCountries = {};
@@ -48,6 +53,7 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
@@ -69,8 +75,16 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
 
   // ── 搜尋與篩選觸發 ────────────────────────────────────────────────────────
 
-  /// 搜尋文字變更時呼叫，合併目前篩選條件一起送出
-  void _onSearchChanged() => _applySearch();
+  /// 搜尋文字變更時呼叫，帶 debounce 後觸發查詢
+  void _onSearchChanged() {
+    // 效能優化：300ms debounce，取消前一個 Timer 再重設
+    // 使用者連續輸入時只有最後一次字元才真正送出 SQLite 查詢
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(
+      const Duration(milliseconds: 300),
+      _applySearch,
+    );
+  }
 
   /// 統一入口：將所有篩選條件傳給 notifier.search()
   Future<void> _applySearch() async {
@@ -78,11 +92,9 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
           title: _searchController.text.trim().isEmpty
               ? null
               : _searchController.text.trim(),
-          // 多選國家目前 notifier 只接受單一 String，
-          // 若僅選一個國家則傳入，多選時暫不篩選（後續可擴充）
-          country: _selectedCountries.length == 1
-              ? _selectedCountries.first
-              : null,
+          countries: _selectedCountries.isEmpty
+              ? null
+              : _selectedCountries.toList(),
           minRating: _minRating,
           startDate: _dateRange?.start,
           endDate: _dateRange?.end,
@@ -323,8 +335,7 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
           // ── 列表主體 ──────────────────────────────────────────────────────
           Expanded(
             child: markersAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const _LoadingSkeleton(),
               error: (e, _) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -352,10 +363,18 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
                       child: ListView.builder(
                         padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
                         itemCount: markers.length,
-                        itemBuilder: (_, i) => _MarkerCard(
-                          marker: markers[i],
-                          onTap: () => _navigateToDetail(markers[i]),
-                          onDelete: () => _deleteMarker(markers[i]),
+                        // 效能優化：關閉 KeepAlive，列表項離開視窗後立即釋放資源
+                        addAutomaticKeepAlives: false,
+                        // 效能優化：明確開啟 RepaintBoundary，隔離各卡片的重繪範圍
+                        addRepaintBoundaries: true,
+                        itemBuilder: (_, i) => RepaintBoundary(
+                          // 效能優化：雙層 RepaintBoundary 確保單卡片狀態更新
+                          // 不觸發鄰近卡片重繪，降低捲動時的 GPU 負擔
+                          child: _MarkerCard(
+                            marker: markers[i],
+                            onTap: () => _navigateToDetail(markers[i]),
+                            onDelete: () => _deleteMarker(markers[i]),
+                          ),
                         ),
                       ),
                     ),
@@ -604,8 +623,12 @@ class _Thumbnail extends StatelessWidget {
         child: photoPath != null
             ? Image.file(
                 File(photoPath!),
+                width: 60,
+                height: 60,
                 fit: BoxFit.cover,
-                // 圖片路徑失效時退回佔位圖示
+                // 效能優化：cacheWidth 限制解碼解析度為 120px（2x 螢幕密度上限）
+                // 避免把原圖（數 MB）完整解碼進記憶體，大幅降低圖片記憶體占用
+                cacheWidth: 120,
                 errorBuilder: (_, __, ___) => _placeholder(context),
               )
             : _placeholder(context),
@@ -691,6 +714,91 @@ class _EmptyState extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Shimmer 載入骨架 ───────────────────────────────────────────────────────────
+
+class _LoadingSkeleton extends StatelessWidget {
+  const _LoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 3,
+      itemBuilder: (_, __) => const _SkeletonCard(),
+    );
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final highlight = Theme.of(context).colorScheme.surface;
+    return Shimmer.fromColors(
+      baseColor: base,
+      highlightColor: highlight,
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 14,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    Container(
+                      height: 12,
+                      width: 120,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    Container(
+                      height: 12,
+                      width: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

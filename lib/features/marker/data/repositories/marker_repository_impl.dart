@@ -22,14 +22,14 @@ class MarkerRepositoryImpl implements MarkerRepository {
   @override
   Future<List<MarkerEntity>> searchMarkers({
     String? title,
-    String? country,
+    List<String>? countries,
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
   }) async {
     final models = await _datasource.search(
       title: title,
-      country: country,
+      countries: countries,
       minRating: minRating,
       startDate: startDate,
       endDate: endDate,

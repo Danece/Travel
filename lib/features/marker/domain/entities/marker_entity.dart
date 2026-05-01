@@ -4,6 +4,7 @@ part 'marker_entity.freezed.dart';
 
 @freezed
 sealed class MarkerEntity with _$MarkerEntity {
+  @Assert('rating >= 1 && rating <= 5', 'rating must be between 1 and 5')
   const factory MarkerEntity({
     required String id,
     required String title,

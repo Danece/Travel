@@ -5,7 +5,7 @@ abstract interface class MarkerRepository {
   Future<MarkerEntity?> getMarkerById(String id);
   Future<List<MarkerEntity>> searchMarkers({
     String? title,
-    String? country,
+    List<String>? countries,
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,

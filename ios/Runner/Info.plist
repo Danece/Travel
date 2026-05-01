@@ -2,30 +2,42 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- 位置權限說明文字（iOS 必填，缺少此設定會直接 crash） -->
+	<!-- ── 權限說明文字（iOS 必填，缺少任何一項會直接 crash 或被 App Store 審核拒絕） ── -->
+
+	<!-- 位置權限：geolocator / google_maps_flutter 使用中定位 -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Travel Mark 需要存取您的位置，以便在地圖上標記旅遊地點。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Travel Mark 需要存取您的位置，以便在地圖上標記旅遊地點。</string>
 
-	<!-- 相簿存取權限說明文字（image_picker 從相簿選取照片必填） -->
+	<!-- 相簿讀取：image_picker 從相簿選取照片 -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Travel Mark 需要存取您的相簿，以便將照片加入旅遊紀錄。</string>
 
-	<!-- 相機使用權限說明文字（image_picker 拍照功能必填） -->
+	<!-- 相簿寫入：儲存照片至相簿（iOS 11+ 必填） -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Travel Mark 需要儲存照片至您的相簿。</string>
+
+	<!-- 相機：image_picker 直接拍照 -->
 	<key>NSCameraUsageDescription</key>
 	<string>Travel Mark 需要存取您的相機，以便直接拍攝旅遊照片。</string>
 
-	<!-- Google Maps iOS SDK API Key（AppDelegate.swift 中亦需設定） -->
+	<!-- ── Google Maps iOS SDK API Key ────────────────────────────────── -->
+	<!-- 1. 至 https://console.cloud.google.com 啟用 Maps SDK for iOS     -->
+	<!-- 2. 建立 API Key 並限制為 iOS App（填入 Bundle ID）                -->
+	<!-- 3. 將 YOUR_GOOGLE_MAPS_IOS_API_KEY 替換為真實金鑰                 -->
+	<!-- 注意：iOS 與 Android 需使用不同的 API Key                        -->
 	<key>GMSApiKey</key>
-	<string>YOUR_GOOGLE_MAPS_API_KEY</string>
+	<string>YOUR_GOOGLE_MAPS_IOS_API_KEY</string>
 
+	<!-- ── Bundle 基本資訊 ────────────────────────────────────────────── -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- App Store 首頁顯示名稱（不含空格，最多 30 字） -->
 	<key>CFBundleDisplayName</key>
-	<string>Travel Mark</string>
+	<string>TravelMark</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -36,10 +48,12 @@
 	<string>travel_mark</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- 版本號：flutter build ipa 時由 pubspec.yaml version 自動帶入 -->
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<!-- Build 號：flutter build ipa 時由 pubspec.yaml version+build 自動帶入 -->
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 外部儲存空間根目錄（相機拍照預設暫存位置） -->
+    <external-path
+        name="external_files"
+        path="." />
+    <!-- 外部 App 私有快取目錄 -->
+    <external-files-path
+        name="external_cache_files"
+        path="." />
+    <!-- 內部快取目錄 -->
+    <cache-path
+        name="cache_files"
+        path="." />
+    <!-- 內部 files 目錄（App Documents 照片存放位置） -->
+    <files-path
+        name="app_files"
+        path="." />
+</paths>

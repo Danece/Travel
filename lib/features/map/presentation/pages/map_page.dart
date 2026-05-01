@@ -48,10 +48,11 @@ class _MapPageState extends ConsumerState<MapPage> {
   /// 目前從 provider 取得的完整地標清單（用於篩選）
   List<MarkerEntity> _allMarkers = [];
 
-  /// 照片縮圖 BitmapDescriptor 快取，key = 照片路徑
+  // 效能優化：自訂圓形縮圖需解碼圖片 + dart:ui Canvas 繪製，建立成本高
+  // 以照片路徑為 key 快取結果，相同路徑的標記直接讀快取，避免重複解碼
   final Map<String, BitmapDescriptor> _bitmapCache = {};
 
-  /// 聚合圓圈 BitmapDescriptor 快取，key = 數量等級（2/10/30/50/100）
+  // 效能優化：聚合圓圈依數量等級快取，同等級標記共用同一 BitmapDescriptor
   final Map<int, BitmapDescriptor> _clusterIconCache = {};
 
   // ── 篩選狀態 ───────────────────────────────────────────────────────────────
@@ -97,13 +98,38 @@ class _MapPageState extends ConsumerState<MapPage> {
     if (mounted) {
       setState(() => _locationEnabled = status.isGranted);
     }
-    // 未授權時請求（只請求一次，不強制）
     if (!status.isGranted) {
       final result = await Permission.location.request();
       if (mounted) {
         setState(() => _locationEnabled = result.isGranted);
+        if (result.isPermanentlyDenied) {
+          _showLocationDeniedDialog();
+        }
       }
     }
+  }
+
+  void _showLocationDeniedDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('需要位置權限'),
+        content: const Text('定位功能已被關閉，請前往系統設定開啟位置存取權限。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              openAppSettings();
+            },
+            child: const Text('前往設定'),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── ClusterManager 回呼 ───────────────────────────────────────────────────
@@ -179,11 +205,19 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   /// 取得個別地標的 icon：有照片 → 圓形縮圖；無照片 → 藍色預設
   Future<BitmapDescriptor> _getMarkerIcon(MarkerEntity entity) async {
+    // 效能優化：標記總數超過 200 時跳過自訂縮圖解碼
+    // 大量標記同時呼叫 _buildCircularPhotoIcon 會造成 UI jank（主執行緒圖片解碼阻塞）
+    // 改用輕量的預設藍色標記，確保地圖操作流暢
+    if (_allMarkers.length > 200) {
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
+    }
+
     if (entity.photoPaths.isEmpty) {
       return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
     }
 
     final path = entity.photoPaths.first;
+    // 效能優化：命中快取時直接回傳，避免重複解碼同一張照片
     if (_bitmapCache.containsKey(path)) return _bitmapCache[path]!;
 
     try {

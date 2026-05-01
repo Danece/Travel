@@ -7,14 +7,14 @@ class SearchMarkers {
 
   Future<List<MarkerEntity>> call({
     String? title,
-    String? country,
+    List<String>? countries,
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
   }) =>
       _repository.searchMarkers(
         title: title,
-        country: country,
+        countries: countries,
         minRating: minRating,
         startDate: startDate,
         endDate: endDate,

@@ -46,6 +46,22 @@ class _BackupPageState extends ConsumerState<BackupPage> {
             onSignOut: _handleSignOut,
           ),
 
+          // ── 未登入提示 ───────────────────────────────────────────────────
+          if (!isSignedIn) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.grey[500]),
+                const SizedBox(width: 6),
+                Text(
+                  '請先登入 Google 帳號以使用備份功能',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                ),
+              ],
+            ),
+          ],
+
           const SizedBox(height: 20),
 
           // ── 2. 自動備份頻率 ──────────────────────────────────────────────

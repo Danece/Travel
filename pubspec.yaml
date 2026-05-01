@@ -64,6 +64,9 @@ dependencies:
   # ZIP 壓縮（備份打包 DB + 照片）
   archive: ^3.4.9
 
+  # 載入骨架動畫
+  shimmer: ^3.0.0
+
   # UI
   cupertino_icons: ^1.0.8
 
@@ -71,6 +74,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+  # App 圖示產生器（執行 dart run flutter_launcher_icons 產生各尺寸圖示）
+  flutter_launcher_icons: ^0.14.3
 
   # Code generation
   build_runner: ^2.4.14
@@ -80,5 +86,23 @@ dev_dependencies:
   custom_lint: ^0.7.5
   riverpod_lint: ^2.6.3
 
+  # Testing
+  sqflite_common_ffi: ^2.3.3
+  mockito: ^5.4.4
+
 flutter:
   uses-material-design: true
+
+# ── App 圖示設定（flutter_launcher_icons） ────────────────────────────────────
+# 使用步驟：
+#   1. 將 1024×1024 px 的 PNG 圖示放至 assets/icon/app_icon.png
+#   2. 執行：dart run flutter_launcher_icons
+#   3. 產生的圖示會自動覆蓋 android/app/src/main/res/mipmap-*/
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  # Android 12+ 自適應圖示（建議前景圖去掉 padding，背景色獨立設定）
+  adaptive_icon_background: "#FFFFFF"   # 可改為你的品牌色（支援 hex 或圖片路徑）
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  min_sdk_android: 26

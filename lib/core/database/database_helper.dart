@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -36,4 +37,8 @@ class DatabaseHelper {
     await _db?.close();
     _db = null;
   }
+
+  /// 僅供測試使用：直接注入已開啟的 [Database]（例如 sqflite_common_ffi 的 in-memory DB）
+  @visibleForTesting
+  static void injectForTesting(Database db) => _db = db;
 }

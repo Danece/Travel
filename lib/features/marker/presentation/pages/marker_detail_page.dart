@@ -376,17 +376,14 @@ class _PhotoSection extends StatelessWidget {
             onPageChanged: onPageChanged,
             itemBuilder: (_, i) => GestureDetector(
               onLongPress: () => onLongPressPhoto(i),
-              child: Image.file(
-                File(photos[i]),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                // 圖片路徑失效時的備援顯示
-                errorBuilder: (_, __, ___) => Container(
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.broken_image_outlined,
-                      size: 40, color: Colors.grey),
-                ),
-              ),
+              child: File(photos[i]).existsSync()
+                  ? Image.file(
+                      File(photos[i]),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => _brokenImage(),
+                    )
+                  : _brokenImage(),
             ),
           ),
 
@@ -440,6 +437,12 @@ class _PhotoSection extends StatelessWidget {
       ),
     );
   }
+
+  Widget _brokenImage() => Container(
+        color: Colors.grey[200],
+        child: const Icon(Icons.broken_image_outlined,
+            size: 40, color: Colors.grey),
+      );
 }
 
 // ── 2. 資訊區塊 ────────────────────────────────────────────────────────────────

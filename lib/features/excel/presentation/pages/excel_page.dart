@@ -166,15 +166,11 @@ class ExcelPage extends ConsumerWidget {
     }
   }
 
-  /// 顯示匯入結果摘要 Dialog
+  /// 顯示匯入結果摘要 Dialog（失敗列可捲動展示原因）
   Future<void> _showImportResultDialog(
     BuildContext context,
     ImportResult result,
   ) async {
-    final failedText = result.failedRows.isEmpty
-        ? '無'
-        : result.failedRows.map((r) => '第 $r 列').join('、');
-
     await showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
@@ -186,34 +182,71 @@ class ExcelPage extends ConsumerWidget {
           color: result.failedRows.isEmpty ? Colors.green : Colors.orange,
         ),
         title: const Text('匯入完成'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 成功筆數
-            _ResultRow(
-              icon: Icons.check_circle_outline,
-              color: Colors.green,
-              label: '成功匯入',
-              value: '${result.successCount} 筆',
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ResultRow(
+                  icon: Icons.check_circle_outline,
+                  color: Colors.green,
+                  label: '成功匯入',
+                  value: '${result.successCount} 筆',
+                ),
+                const SizedBox(height: 6),
+                _ResultRow(
+                  icon: Icons.skip_next_outlined,
+                  color: Colors.grey,
+                  label: '跳過（空白列）',
+                  value: '${result.skippedCount} 列',
+                ),
+                if (result.failedRows.isEmpty)
+                  ...[
+                    const SizedBox(height: 6),
+                    _ResultRow(
+                      icon: Icons.error_outline,
+                      color: Colors.grey,
+                      label: '驗證失敗',
+                      value: '無',
+                    ),
+                  ]
+                else ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
+                  Text(
+                    '驗證失敗（${result.failedRows.length} 筆）',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  ...List.generate(result.failedRows.length, (i) {
+                    final msg = i < result.failedMessages.length
+                        ? result.failedMessages[i]
+                        : '第 ${result.failedRows[i]} 列：未知錯誤';
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.error_outline,
+                              size: 16, color: Colors.red),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              msg,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ],
             ),
-            const SizedBox(height: 6),
-            // 跳過筆數
-            _ResultRow(
-              icon: Icons.skip_next_outlined,
-              color: Colors.grey,
-              label: '跳過（空白列）',
-              value: '${result.skippedCount} 列',
-            ),
-            const SizedBox(height: 6),
-            // 失敗列號
-            _ResultRow(
-              icon: Icons.error_outline,
-              color: result.failedRows.isEmpty ? Colors.grey : Colors.red,
-              label: '驗證失敗',
-              value: failedText,
-            ),
-          ],
+          ),
         ),
         actions: [
           FilledButton(

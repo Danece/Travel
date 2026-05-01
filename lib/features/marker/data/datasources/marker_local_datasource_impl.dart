@@ -37,7 +37,7 @@ class MarkerLocalDatasourceImpl implements MarkerLocalDatasource {
   @override
   Future<List<MarkerModel>> search({
     String? title,
-    String? country,
+    List<String>? countries,
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
@@ -51,9 +51,10 @@ class MarkerLocalDatasourceImpl implements MarkerLocalDatasource {
       conditions.add('${MarkerTable.colTitle} LIKE ?');
       args.add('%$title%');
     }
-    if (country != null && country.isNotEmpty) {
-      conditions.add('${MarkerTable.colCountry} = ?');
-      args.add(country);
+    if (countries != null && countries.isNotEmpty) {
+      final placeholders = List.filled(countries.length, '?').join(',');
+      conditions.add('${MarkerTable.colCountry} IN ($placeholders)');
+      args.addAll(countries);
     }
     if (minRating != null) {
       conditions.add('${MarkerTable.colRating} >= ?');

@@ -24,7 +24,7 @@ final markerRepositoryProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef MarkerRepositoryRef = AutoDisposeProviderRef<MarkerRepositoryImpl>;
-String _$markerNotifierHash() => r'503edb937fce7d5d59534f3b7d58145b041e3574';
+String _$markerNotifierHash() => r'2f624d26a30733f23375805a5d73cabc6d46ab72';
 
 /// See also [MarkerNotifier].
 @ProviderFor(MarkerNotifier)

@@ -5,7 +5,7 @@ abstract interface class MarkerLocalDatasource {
   Future<MarkerModel?> getById(String id);
   Future<List<MarkerModel>> search({
     String? title,
-    String? country,
+    List<String>? countries,
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,

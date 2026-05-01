@@ -161,6 +161,7 @@ class ExcelRepositoryImpl implements ExcelRepository {
     int successCount = 0;
     int skippedCount = 0;
     final failedRows = <int>[];
+    final failedMessages = <String>[];
 
     // 從第 1 列（index 1）開始，跳過第 0 列標題
     for (var rowIdx = 1; rowIdx < sheet.maxRows; rowIdx++) {
@@ -177,11 +178,12 @@ class ExcelRepositoryImpl implements ExcelRepository {
         final marker = _parseRow(row, rowIdx);
         await _markerRepository.insertMarker(marker);
         successCount++;
-      } on LocalFailure {
-        // 驗證失敗：記錄 1-indexed 列號（含標題列）供使用者辨識
+      } on LocalFailure catch (e) {
         failedRows.add(rowIdx + 1);
-      } catch (_) {
+        failedMessages.add(e.message);
+      } catch (e) {
         failedRows.add(rowIdx + 1);
+        failedMessages.add('第 ${rowIdx + 1} 列：${e.toString()}');
       }
     }
 
@@ -189,6 +191,7 @@ class ExcelRepositoryImpl implements ExcelRepository {
       successCount: successCount,
       skippedCount: skippedCount,
       failedRows: failedRows,
+      failedMessages: failedMessages,
     );
   }
 

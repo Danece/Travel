@@ -71,7 +71,7 @@ class MarkerNotifier extends _$MarkerNotifier {
 
   Future<void> search({
     String? title,
-    String? country,
+    List<String>? countries,
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
@@ -81,7 +81,7 @@ class MarkerNotifier extends _$MarkerNotifier {
     state = await AsyncValue.guard(
       () => SearchMarkers(repo).call(
         title: title,
-        country: country,
+        countries: countries,
         minRating: minRating,
         startDate: startDate,
         endDate: endDate,

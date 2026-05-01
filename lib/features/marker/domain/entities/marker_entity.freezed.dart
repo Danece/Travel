@@ -375,7 +375,8 @@ class _MarkerEntity implements MarkerEntity {
       required this.rating,
       this.note = '',
       final List<String> photoPaths = const []})
-      : _photoPaths = photoPaths;
+      : assert(rating >= 1 && rating <= 5, 'rating must be between 1 and 5'),
+        _photoPaths = photoPaths;
 
   @override
   final String id;

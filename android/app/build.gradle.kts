@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,9 +8,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// ── 簽名設定：從 android/key.properties 讀取（不進 git） ──────────────────────
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    namespace = "com.example.travel_mark"
-    compileSdk = flutter.compileSdkVersion
+    namespace = "com.travelmark.app"
+    compileSdk = 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -19,22 +29,33 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias     = keystoreProperties["keyAlias"]     as? String ?: ""
+            keyPassword  = keystoreProperties["keyPassword"]  as? String ?: ""
+            storeFile    = (keystoreProperties["storeFile"]   as? String)?.let { file(it) }
+            storePassword = keystoreProperties["storePassword"] as? String ?: ""
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.travel_mark"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        applicationId = "com.travelmark.app"
+        minSdk        = 26
+        targetSdk     = 34
+        versionCode   = 1
+        versionName   = "1.0.0"
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // 使用 key.properties 中的 release 簽名金鑰
+            signingConfig    = signingConfigs.getByName("release")
+            isMinifyEnabled  = true    // R8 程式碼壓縮
+            isShrinkResources = true   // 移除未使用的資源
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
