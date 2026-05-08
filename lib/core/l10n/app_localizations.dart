@@ -219,6 +219,7 @@ class AppLocalizations {
   String get noneLabel => isEn ? 'None' : '無';
   String importFailedCount(int n) => isEn ? 'Validation failed ($n)' : '驗證失敗（$n 筆）';
   String get cannotGetFilePath => isEn ? 'Cannot get file path, please try again' : '無法取得檔案路徑，請重試';
+  String get csvOnlyError => isEn ? 'Please select a .csv file' : '請選取 .csv 格式的檔案';
   String savedTo(String path) => isEn ? 'Saved to $path' : '已儲存至 $path';
   String unknownError(int row) => isEn ? 'Row $row: Unknown error' : '第 $row 列：未知錯誤';
 

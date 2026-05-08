@@ -129,8 +129,7 @@ class ExcelPage extends ConsumerWidget {
   Future<void> _onImport(
       BuildContext context, WidgetRef ref, AppLocalizations l10n) async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
+      type: FileType.any,
       allowMultiple: false,
     );
 
@@ -141,6 +140,15 @@ class ExcelPage extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.cannotGetFilePath)),
+        );
+      }
+      return;
+    }
+
+    if (!filePath.toLowerCase().endsWith('.csv')) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.csvOnlyError)),
         );
       }
       return;
