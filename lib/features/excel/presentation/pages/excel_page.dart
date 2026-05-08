@@ -2,39 +2,35 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/l10n/app_localizations.dart';
 import '../../domain/entities/import_result.dart';
 import '../providers/excel_provider.dart';
-
-// ── Excel 匯出 / 匯入頁 ───────────────────────────────────────────────────────
-//
-// 頁面提供兩個主要操作：
-//   1. 匯出：將所有地標寫入 xlsx 並顯示儲存路徑
-//   2. 匯入：以 FilePicker 選取 .xlsx 後批量寫入資料庫，完成後顯示摘要 Dialog
 
 class ExcelPage extends ConsumerWidget {
   const ExcelPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final state = ref.watch(excelNotifierProvider);
     final isLoading = state.isLoading;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Excel 匯出 / 匯入')),
+      appBar: AppBar(title: Text(l10n.excelPageTitle)),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── 說明卡片 ────────────────────────────────────────────────
-            _InfoCard(),
+            // ── 說明卡片 ──────────────────────────────────────────────────
+            _InfoCard(l10n: l10n),
             const SizedBox(height: 32),
 
-            // ── 匯出區塊 ────────────────────────────────────────────────
-            const _SectionLabel('匯出'),
+            // ── 匯出區塊 ──────────────────────────────────────────────────
+            _SectionLabel(l10n.exportSection),
             const SizedBox(height: 8),
             FilledButton.icon(
-              onPressed: isLoading ? null : () => _onExport(context, ref),
+              onPressed: isLoading ? null : () => _onExport(context, ref, l10n),
               icon: isLoading
                   ? const SizedBox(
                       width: 16,
@@ -43,7 +39,7 @@ class ExcelPage extends ConsumerWidget {
                           strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.upload_file_outlined),
-              label: Text(isLoading ? '處理中…' : '匯出為 Excel（.xlsx）'),
+              label: Text(isLoading ? l10n.processing : l10n.exportButton),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
                 shape: RoundedRectangleBorder(
@@ -53,11 +49,11 @@ class ExcelPage extends ConsumerWidget {
 
             const SizedBox(height: 32),
 
-            // ── 匯入區塊 ────────────────────────────────────────────────
-            const _SectionLabel('匯入'),
+            // ── 匯入區塊 ──────────────────────────────────────────────────
+            _SectionLabel(l10n.importSection),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: isLoading ? null : () => _onImport(context, ref),
+              onPressed: isLoading ? null : () => _onImport(context, ref, l10n),
               icon: isLoading
                   ? const SizedBox(
                       width: 16,
@@ -65,7 +61,7 @@ class ExcelPage extends ConsumerWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.download_outlined),
-              label: Text(isLoading ? '處理中…' : '選取 .xlsx 檔案並匯入'),
+              label: Text(isLoading ? l10n.processing : l10n.importButton),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
                 shape: RoundedRectangleBorder(
@@ -73,7 +69,7 @@ class ExcelPage extends ConsumerWidget {
               ),
             ),
 
-            // ── 錯誤訊息（AsyncError 時顯示）───────────────────────────
+            // ── 錯誤訊息 ──────────────────────────────────────────────────
             if (state.hasError) ...[
               const SizedBox(height: 16),
               Container(
@@ -88,11 +84,12 @@ class ExcelPage extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(Icons.error_outline,
-                        color: Theme.of(context).colorScheme.error, size: 18),
+                        color: Theme.of(context).colorScheme.error,
+                        size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '錯誤：${state.error}',
+                        '${l10n.errorPrefix}${state.error}',
                         style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
                             fontSize: 13),
@@ -108,72 +105,65 @@ class ExcelPage extends ConsumerWidget {
     );
   }
 
-  // ── 匯出流程 ───────────────────────────────────────────────────────────────
-
-  Future<void> _onExport(BuildContext context, WidgetRef ref) async {
+  Future<void> _onExport(
+      BuildContext context, WidgetRef ref, AppLocalizations l10n) async {
     final savedPath =
         await ref.read(excelNotifierProvider.notifier).export();
 
     if (!context.mounted) return;
 
     if (savedPath != null) {
-      // 成功：顯示包含完整路徑的 SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('已儲存至 $savedPath'),
+          content: Text(l10n.savedTo(savedPath)),
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
-            label: '知道了',
+            label: l10n.gotIt,
             onPressed: () {},
           ),
         ),
       );
     }
-    // 失敗時 state 已更新為 AsyncError，UI 自動顯示錯誤訊息
   }
 
-  // ── 匯入流程 ───────────────────────────────────────────────────────────────
-
-  Future<void> _onImport(BuildContext context, WidgetRef ref) async {
-    // 1. 以 FilePicker 讓使用者選取 .xlsx 檔案
+  Future<void> _onImport(
+      BuildContext context, WidgetRef ref, AppLocalizations l10n) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      allowedExtensions: ['xlsx', 'xls'],
       allowMultiple: false,
     );
 
-    if (result == null || result.files.isEmpty) return; // 使用者取消
+    if (result == null || result.files.isEmpty) return;
 
     final filePath = result.files.single.path;
     if (filePath == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('無法取得檔案路徑，請重試')),
+          SnackBar(content: Text(l10n.cannotGetFilePath)),
         );
       }
       return;
     }
 
-    // 2. 執行匯入
     final importResult =
         await ref.read(excelNotifierProvider.notifier).import(filePath);
 
     if (!context.mounted) return;
 
-    // 3. 顯示結果摘要 Dialog
     if (importResult != null) {
-      await _showImportResultDialog(context, importResult);
+      await _showImportResultDialog(context, importResult, l10n);
     }
   }
 
-  /// 顯示匯入結果摘要 Dialog（失敗列可捲動展示原因）
   Future<void> _showImportResultDialog(
     BuildContext context,
     ImportResult result,
+    AppLocalizations l10n,
   ) async {
     await showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         icon: Icon(
           result.failedRows.isEmpty
               ? Icons.check_circle_outline
@@ -181,7 +171,7 @@ class ExcelPage extends ConsumerWidget {
           size: 40,
           color: result.failedRows.isEmpty ? Colors.green : Colors.orange,
         ),
-        title: const Text('匯入完成'),
+        title: Text(l10n.importComplete),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
@@ -192,39 +182,37 @@ class ExcelPage extends ConsumerWidget {
                 _ResultRow(
                   icon: Icons.check_circle_outline,
                   color: Colors.green,
-                  label: '成功匯入',
-                  value: '${result.successCount} 筆',
+                  label: l10n.importSuccess,
+                  value: '${result.successCount} ${l10n.isEn ? 'records' : '筆'}',
                 ),
                 const SizedBox(height: 6),
                 _ResultRow(
                   icon: Icons.skip_next_outlined,
                   color: Colors.grey,
-                  label: '跳過（空白列）',
-                  value: '${result.skippedCount} 列',
+                  label: l10n.importSkipped,
+                  value: '${result.skippedCount} ${l10n.isEn ? 'rows' : '列'}',
                 ),
-                if (result.failedRows.isEmpty)
-                  ...[
-                    const SizedBox(height: 6),
-                    _ResultRow(
-                      icon: Icons.error_outline,
-                      color: Colors.grey,
-                      label: '驗證失敗',
-                      value: '無',
-                    ),
-                  ]
-                else ...[
+                if (result.failedRows.isEmpty) ...[
+                  const SizedBox(height: 6),
+                  _ResultRow(
+                    icon: Icons.error_outline,
+                    color: Colors.grey,
+                    label: l10n.importValidationFailed,
+                    value: l10n.noneLabel,
+                  ),
+                ] else ...[
                   const SizedBox(height: 12),
                   const Divider(height: 1),
                   const SizedBox(height: 8),
                   Text(
-                    '驗證失敗（${result.failedRows.length} 筆）',
+                    l10n.importFailedCount(result.failedRows.length),
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   ...List.generate(result.failedRows.length, (i) {
                     final msg = i < result.failedMessages.length
                         ? result.failedMessages[i]
-                        : '第 ${result.failedRows[i]} 列：未知錯誤';
+                        : l10n.unknownError(result.failedRows[i]);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Row(
@@ -250,8 +238,8 @@ class ExcelPage extends ConsumerWidget {
         ),
         actions: [
           FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('確認'),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.confirm),
           ),
         ],
       ),
@@ -262,6 +250,9 @@ class ExcelPage extends ConsumerWidget {
 // ── 說明卡片 ───────────────────────────────────────────────────────────────────
 
 class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.l10n});
+  final AppLocalizations l10n;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -283,7 +274,7 @@ class _InfoCard extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 6),
               Text(
-                'Excel 格式說明',
+                l10n.excelFormatInfo,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.bold,
@@ -292,12 +283,9 @@ class _InfoCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            '匯出欄位：ID、標題、國家、建立日期、緯度、經度、評分、心得內容、照片數量\n'
-            '匯入必填：標題、國家、緯度、經度、評分（1–5）\n'
-            '日期格式：yyyy-MM-dd（例：2024-04-15）\n'
-            '照片路徑不匯出，跨裝置路徑無效',
-            style: TextStyle(fontSize: 12),
+          Text(
+            l10n.excelFormatContent,
+            style: const TextStyle(fontSize: 12),
           ),
         ],
       ),

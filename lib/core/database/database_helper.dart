@@ -19,9 +19,17 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     return openDatabase(
       join(dbPath, 'travel_mark.db'),
-      version: 1,
+      version: 2,
       onCreate: (db, _) async {
         await db.execute(MarkerTable.createTableSql);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE ${MarkerTable.tableName} ADD COLUMN '
+            '${MarkerTable.colCategory} TEXT NOT NULL DEFAULT \'attraction\'',
+          );
+        }
       },
     );
   }

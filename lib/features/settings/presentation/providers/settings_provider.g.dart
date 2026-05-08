@@ -38,5 +38,22 @@ final settingsNotifierProvider = AutoDisposeAsyncNotifierProvider<
 );
 
 typedef _$SettingsNotifier = AutoDisposeAsyncNotifier<AppSettingsEntity>;
+String _$colorVariantNotifierHash() =>
+    r'dc54e1e3d5359afcf136700b36328d2de95d011e';
+
+/// See also [ColorVariantNotifier].
+@ProviderFor(ColorVariantNotifier)
+final colorVariantNotifierProvider =
+    AutoDisposeAsyncNotifierProvider<ColorVariantNotifier, String>.internal(
+  ColorVariantNotifier.new,
+  name: r'colorVariantNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$colorVariantNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$ColorVariantNotifier = AutoDisposeAsyncNotifier<String>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

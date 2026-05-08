@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/l10n/app_localizations.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/settings/presentation/providers/settings_provider.dart';
@@ -24,14 +26,27 @@ class _TravelMarkAppState extends ConsumerState<TravelMarkApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(appRouterProvider);
-    final themeMode =
-        ref.watch(settingsNotifierProvider).valueOrNull?.themeMode ??
-            ThemeMode.system;
+    final settings = ref.watch(settingsNotifierProvider).valueOrNull;
+    final themeMode = settings?.themeMode ?? ThemeMode.system;
+    final locale = settings?.locale ?? 'zh-TW';
+    final colorVariant =
+        ref.watch(colorVariantNotifierProvider).valueOrNull ?? 'default';
+
+    final isColorful = colorVariant == 'colorful';
+
     return MaterialApp.router(
       title: 'Travel Mark',
-      theme: AppTheme.light,
+      theme: isColorful ? AppTheme.colorful : AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: themeMode,
+      themeMode: isColorful ? ThemeMode.light : themeMode,
+      locale: locale == 'en' ? const Locale('en') : const Locale('zh', 'TW'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('zh', 'TW'), Locale('en')],
       routerConfig: router,
       builder: (context, child) => child ?? const SizedBox.shrink(),
     );

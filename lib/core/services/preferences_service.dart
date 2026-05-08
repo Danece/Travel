@@ -24,6 +24,7 @@ class PreferencesService {
   static const _keyLocale = 'settings_locale';
   static const _keyAutoBackup = 'settings_auto_backup';
   static const _keyAutoBackupFrequency = 'settings_backup_frequency';
+  static const _keyColorVariant = 'settings_color_variant';
 
   // ── 取得快取的 SharedPreferences 實例 ─────────────────────────────────────
 
@@ -94,5 +95,21 @@ class PreferencesService {
   Future<void> setAutoBackupFrequency(String frequency) async {
     final prefs = await _prefs;
     await prefs.setString(_keyAutoBackupFrequency, frequency);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 色彩方案 colorVariant
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// 讀取色彩方案代碼；預設 'default'，可用值：'default' | 'colorful'
+  Future<String> getColorVariant() async {
+    final prefs = await _prefs;
+    return prefs.getString(_keyColorVariant) ?? 'default';
+  }
+
+  /// 儲存色彩方案代碼
+  Future<void> setColorVariant(String variant) async {
+    final prefs = await _prefs;
+    await prefs.setString(_keyColorVariant, variant);
   }
 }

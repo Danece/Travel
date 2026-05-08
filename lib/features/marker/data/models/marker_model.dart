@@ -14,6 +14,7 @@ class MarkerModel {
     required this.rating,
     this.note = '',
     this.photoPaths = const [],
+    this.category = 'attraction',
   });
 
   final String id;
@@ -25,6 +26,7 @@ class MarkerModel {
   final int rating;
   final String note;
   final List<String> photoPaths;
+  final String category;
 
   // ── SQLite ────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,7 @@ class MarkerModel {
         photoPaths: (jsonDecode(map[MarkerTable.colPhotoPaths] as String)
                 as List<dynamic>)
             .cast<String>(),
+        category: map[MarkerTable.colCategory] as String? ?? 'attraction',
       );
 
   Map<String, dynamic> toMap() => {
@@ -54,6 +57,7 @@ class MarkerModel {
         MarkerTable.colRating: rating,
         MarkerTable.colNote: note,
         MarkerTable.colPhotoPaths: jsonEncode(photoPaths),
+        MarkerTable.colCategory: category,
       };
 
   // ── Domain ────────────────────────────────────────────────────────────────
@@ -68,6 +72,7 @@ class MarkerModel {
         rating: entity.rating,
         note: entity.note,
         photoPaths: entity.photoPaths,
+        category: entity.category,
       );
 
   MarkerEntity toEntity() => MarkerEntity(
@@ -80,5 +85,6 @@ class MarkerModel {
         rating: rating,
         note: note,
         photoPaths: photoPaths,
+        category: category,
       );
 }

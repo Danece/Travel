@@ -9,6 +9,7 @@ abstract interface class MarkerLocalDatasource {
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
+    List<String>? categories,
   });
   Future<void> insert(MarkerModel model);
   Future<void> update(MarkerModel model);

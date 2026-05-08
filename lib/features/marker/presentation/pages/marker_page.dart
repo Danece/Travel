@@ -5,18 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../core/l10n/app_localizations.dart';
+import '../../domain/entities/marker_category.dart';
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
 import 'create_marker_page.dart';
 import 'marker_detail_page.dart';
-
-// ── 地標列表頁 ────────────────────────────────────────────────────────────────
-//
-// 頁面結構：
-//   1. 頂部搜尋欄（TextField，onChange 即時搜尋）
-//   2. 水平 FilterChip 列（國家、評分、日期區間）
-//   3. RefreshIndicator + ListView（Card + Dismissible）
-//   4. FAB 新增地標
 
 class MarkerPage extends ConsumerStatefulWidget {
   const MarkerPage({super.key});
@@ -26,28 +20,17 @@ class MarkerPage extends ConsumerStatefulWidget {
 }
 
 class _MarkerPageState extends ConsumerState<MarkerPage> {
-  // ── 搜尋狀態 ───────────────────────────────────────────────────────────────
   final _searchController = TextEditingController();
-
-  // 效能優化：debounce Timer，避免每個字元都觸發 SQLite 查詢
   Timer? _debounceTimer;
 
-  // ── 篩選狀態 ───────────────────────────────────────────────────────────────
-  /// 目前選取的國家清單（空表示不篩選）
   Set<String> _selectedCountries = {};
-
-  /// 最低評分篩選（null 表示不篩選）
   int? _minRating;
-
-  /// 日期區間篩選（null 表示不篩選）
   DateTimeRange? _dateRange;
-
-  // ── 生命週期 ───────────────────────────────────────────────────────────────
+  Set<MarkerCategory> _selectedCategories = {};
 
   @override
   void initState() {
     super.initState();
-    // 搜尋文字變更時即時觸發搜尋
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -59,34 +42,22 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
     super.dispose();
   }
 
-  // ── 工具方法 ───────────────────────────────────────────────────────────────
-
-  /// 將 DateTime 格式化為 yyyy/MM/dd
   String _fmtDate(DateTime d) =>
       '${d.year}/'
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.day.toString().padLeft(2, '0')}';
 
-  /// 是否有任一篩選條件啟用
   bool get _hasFilter =>
       _selectedCountries.isNotEmpty ||
       _minRating != null ||
-      _dateRange != null;
+      _dateRange != null ||
+      _selectedCategories.isNotEmpty;
 
-  // ── 搜尋與篩選觸發 ────────────────────────────────────────────────────────
-
-  /// 搜尋文字變更時呼叫，帶 debounce 後觸發查詢
   void _onSearchChanged() {
-    // 效能優化：300ms debounce，取消前一個 Timer 再重設
-    // 使用者連續輸入時只有最後一次字元才真正送出 SQLite 查詢
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(
-      const Duration(milliseconds: 300),
-      _applySearch,
-    );
+    _debounceTimer = Timer(const Duration(milliseconds: 300), _applySearch);
   }
 
-  /// 統一入口：將所有篩選條件傳給 notifier.search()
   Future<void> _applySearch() async {
     await ref.read(markerNotifierProvider.notifier).search(
           title: _searchController.text.trim().isEmpty
@@ -98,36 +69,35 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
           minRating: _minRating,
           startDate: _dateRange?.start,
           endDate: _dateRange?.end,
+          categories: _selectedCategories.isEmpty
+              ? null
+              : _selectedCategories.map((c) => c.name).toList(),
         );
   }
 
-  /// 清除所有篩選條件並重新搜尋
   Future<void> _clearFilters() async {
     setState(() {
       _selectedCountries = {};
       _minRating = null;
       _dateRange = null;
+      _selectedCategories = {};
     });
     await _applySearch();
   }
 
-  // ── 篩選對話框 ────────────────────────────────────────────────────────────
-
-  /// 國家多選對話框（從目前所有地標取出不重複的國家清單）
-  Future<void> _showCountryDialog(List<MarkerEntity> allMarkers) async {
-    // 從現有地標取出所有不重複國家，排序後展示
-    final countries = allMarkers.map((m) => m.country).toSet().toList()..sort();
+  Future<void> _showCountryDialog(
+      List<MarkerEntity> allMarkers, AppLocalizations l10n) async {
+    final countries =
+        allMarkers.map((m) => m.country).toSet().toList()..sort();
     if (countries.isEmpty) return;
 
-    // 暫存選取狀態（對話框內的臨時副本，確認才套用）
     var tempSelected = Set<String>.from(_selectedCountries);
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('篩選國家'),
-          // 讓對話框可捲動（國家清單可能很長）
+          title: Text(l10n.filterCountryTitle),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView(
@@ -152,11 +122,11 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('確認'),
+              child: Text(l10n.confirm),
             ),
           ],
         ),
@@ -168,26 +138,24 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
     await _applySearch();
   }
 
-  /// 評分篩選對話框（SimpleDialog 選最低評分 1–5 星）
-  Future<void> _showRatingDialog() async {
+  Future<void> _showRatingDialog(AppLocalizations l10n) async {
     final picked = await showDialog<int>(
       context: context,
-      builder: (_) => SimpleDialog(
-        title: const Text('最低評分'),
+      builder: (ctx) => SimpleDialog(
+        title: Text(l10n.filterMinRating),
         children: List.generate(5, (i) {
           final stars = i + 1;
           return SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, stars),
+            onPressed: () => Navigator.pop(ctx, stars),
             child: Row(
               children: [
-                // 顯示對應數量的實心星星
                 ...List.generate(
                   stars,
                   (_) => const Icon(Icons.star_rounded,
                       color: Colors.amber, size: 20),
                 ),
                 const SizedBox(width: 8),
-                Text('$stars 星以上'),
+                Text(l10n.starsAbove(stars)),
               ],
             ),
           );
@@ -200,18 +168,17 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
     await _applySearch();
   }
 
-  /// 日期區間篩選（showDateRangePicker）
-  Future<void> _showDateRangePicker() async {
+  Future<void> _showDateRangePicker(AppLocalizations l10n) async {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2000),
       lastDate: now,
       initialDateRange: _dateRange,
-      helpText: '選擇拜訪日期區間',
-      confirmText: '確認',
-      cancelText: '取消',
-      saveText: '確認',
+      helpText: l10n.selectDateRange,
+      confirmText: l10n.confirm,
+      cancelText: l10n.cancel,
+      saveText: l10n.confirm,
     );
 
     if (picked == null || !mounted) return;
@@ -219,40 +186,82 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
     await _applySearch();
   }
 
-  // ── 下拉刷新 ──────────────────────────────────────────────────────────────
+  Future<void> _showCategoryDialog(AppLocalizations l10n) async {
+    var tempSelected = Set<MarkerCategory>.from(_selectedCategories);
 
-  /// 下拉刷新：重置搜尋條件，重新載入全部資料
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(l10n.filterCategoryTitle),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: MarkerCategory.values.map((cat) {
+                final sel = tempSelected.contains(cat);
+                return FilterChip(
+                  label: Text(cat.localizedDisplay(l10n.isEn)),
+                  selected: sel,
+                  onSelected: (v) => setDialogState(() {
+                    if (v) {
+                      tempSelected.add(cat);
+                    } else {
+                      tempSelected.remove(cat);
+                    }
+                  }),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l10n.confirm),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    setState(() => _selectedCategories = tempSelected);
+    await _applySearch();
+  }
+
   Future<void> _onRefresh() async {
     _searchController.clear();
     await _clearFilters();
   }
 
-  // ── 建構 UI ────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final markersAsync = ref.watch(markerNotifierProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('旅遊地標')),
+      appBar: AppBar(title: Text(l10n.markerPageTitle)),
       body: Column(
         children: [
           // ── 搜尋欄 ──────────────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: '搜尋地標名稱…',
+                hintText: l10n.searchHint,
                 prefixIcon: const Icon(Icons.search),
-                // 有輸入文字時顯示清除按鈕
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
-                        tooltip: '清除搜尋',
+                        tooltip: l10n.clearSearch,
                         onPressed: () {
                           _searchController.clear();
-                          // 清除後讓鍵盤收起
                           FocusScope.of(context).unfocus();
                         },
                       )
@@ -274,54 +283,66 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
 
           // ── 篩選 Chip 列 ─────────────────────────────────────────────────
           SizedBox(
-            height: 44,
+            height: 46,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
               children: [
-                // 國家篩選 Chip
                 _FilterChipButton(
                   label: _selectedCountries.isEmpty
-                      ? '國家'
-                      : '國家（${_selectedCountries.length}）',
+                      ? l10n.filterCountry
+                      : l10n.filterCountryActive(
+                          _selectedCountries.length),
                   icon: Icons.flag_outlined,
                   isActive: _selectedCountries.isNotEmpty,
-                  onPressed: () => markersAsync.whenData(
-                      (list) => _showCountryDialog(list)),
+                  onPressed: () => markersAsync
+                      .whenData((list) => _showCountryDialog(list, l10n)),
                 ),
                 const SizedBox(width: 8),
 
-                // 評分篩選 Chip
                 _FilterChipButton(
-                  label: _minRating == null ? '評分' : '$_minRating★ 以上',
+                  label: _minRating == null
+                      ? l10n.filterRating
+                      : l10n.starsAbove(_minRating!),
                   icon: Icons.star_outline_rounded,
                   isActive: _minRating != null,
-                  onPressed: _showRatingDialog,
+                  onPressed: () => _showRatingDialog(l10n),
                 ),
                 const SizedBox(width: 8),
 
-                // 日期區間篩選 Chip
                 _FilterChipButton(
                   label: _dateRange == null
-                      ? '日期'
+                      ? l10n.filterDate
                       : '${_fmtDate(_dateRange!.start)} – ${_fmtDate(_dateRange!.end)}',
                   icon: Icons.date_range_outlined,
                   isActive: _dateRange != null,
-                  onPressed: _showDateRangePicker,
+                  onPressed: () => _showDateRangePicker(l10n),
+                ),
+                const SizedBox(width: 8),
+
+                _FilterChipButton(
+                  label: _selectedCategories.isEmpty
+                      ? l10n.filterCategory
+                      : l10n
+                          .filterCategoryActive(_selectedCategories.length),
+                  icon: Icons.category_outlined,
+                  isActive: _selectedCategories.isNotEmpty,
+                  onPressed: () => _showCategoryDialog(l10n),
                 ),
 
-                // 有篩選條件時顯示清除按鈕
                 if (_hasFilter) ...[
                   const SizedBox(width: 4),
                   Center(
                     child: TextButton.icon(
                       onPressed: _clearFilters,
                       icon: const Icon(Icons.filter_list_off, size: 16),
-                      label: const Text('清除篩選'),
+                      label: Text(l10n.clearFilters),
                       style: TextButton.styleFrom(
                         foregroundColor:
                             Theme.of(context).colorScheme.error,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ),
@@ -330,6 +351,7 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
               ],
             ),
           ),
+          const SizedBox(height: 4),
           const Divider(height: 1),
 
           // ── 列表主體 ──────────────────────────────────────────────────────
@@ -343,35 +365,31 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
                     const Icon(Icons.error_outline,
                         size: 48, color: Colors.grey),
                     const SizedBox(height: 8),
-                    Text('載入失敗：$e',
+                    Text('${l10n.loadFailed}：$e',
                         style: const TextStyle(color: Colors.grey)),
                     const SizedBox(height: 12),
                     OutlinedButton(
                       onPressed: () =>
                           ref.invalidate(markerNotifierProvider),
-                      child: const Text('重試'),
+                      child: Text(l10n.retry),
                     ),
                   ],
                 ),
               ),
               data: (markers) => markers.isEmpty
-                  ? _EmptyState(
-                      onAdd: _navigateToCreate,
-                    )
+                  ? _EmptyState(onAdd: _navigateToCreate, l10n: l10n)
                   : RefreshIndicator(
                       onRefresh: _onRefresh,
                       child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
+                        padding:
+                            const EdgeInsets.fromLTRB(12, 12, 12, 80),
                         itemCount: markers.length,
-                        // 效能優化：關閉 KeepAlive，列表項離開視窗後立即釋放資源
                         addAutomaticKeepAlives: false,
-                        // 效能優化：明確開啟 RepaintBoundary，隔離各卡片的重繪範圍
                         addRepaintBoundaries: true,
                         itemBuilder: (_, i) => RepaintBoundary(
-                          // 效能優化：雙層 RepaintBoundary 確保單卡片狀態更新
-                          // 不觸發鄰近卡片重繪，降低捲動時的 GPU 負擔
                           child: _MarkerCard(
                             marker: markers[i],
+                            l10n: l10n,
                             onTap: () => _navigateToDetail(markers[i]),
                             onDelete: () => _deleteMarker(markers[i]),
                           ),
@@ -383,39 +401,31 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
         ],
       ),
 
-      // ── FAB：新增地標 ──────────────────────────────────────────────────────
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _navigateToCreate,
         icon: const Icon(Icons.add_location_alt_outlined),
-        label: const Text('新增地標'),
-        tooltip: '新增旅遊地標',
+        label: Text(l10n.addMarker),
+        tooltip: l10n.addMarker,
       ),
     );
   }
 
-  // ── 頁面導覽 ───────────────────────────────────────────────────────────────
-
-  /// 進入 CreateMarkerPage，返回後強制刷新列表
   Future<void> _navigateToCreate() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const CreateMarkerPage()),
     );
-    // CreateMarkerPage 儲存後 invalidateSelf，但以防萬一再 invalidate 一次
     if (mounted) ref.invalidate(markerNotifierProvider);
   }
 
-  /// 進入 MarkerDetailPage
   Future<void> _navigateToDetail(MarkerEntity marker) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MarkerDetailPage(marker: marker),
       ),
     );
-    // 詳情頁可能執行了編輯或刪除，返回後刷新列表
     if (mounted) ref.invalidate(markerNotifierProvider);
   }
 
-  /// 左滑確認刪除
   Future<void> _deleteMarker(MarkerEntity marker) async {
     await ref.read(markerNotifierProvider.notifier).remove(marker.id);
   }
@@ -423,7 +433,6 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
 
 // ── FilterChip 按鈕 ────────────────────────────────────────────────────────────
 
-/// 可點擊的篩選 Chip（選取時顯示填色狀態）
 class _FilterChipButton extends StatelessWidget {
   const _FilterChipButton({
     required this.label,
@@ -434,8 +443,6 @@ class _FilterChipButton extends StatelessWidget {
 
   final String label;
   final IconData icon;
-
-  /// 是否處於啟用篩選狀態（影響顏色與選取外觀）
   final bool isActive;
   final VoidCallback onPressed;
 
@@ -456,7 +463,6 @@ class _FilterChipButton extends StatelessWidget {
         ],
       ),
       selected: isActive,
-      // 選取時使用 secondaryContainer 底色突出顯示
       selectedColor: cs.secondaryContainer,
       checkmarkColor: cs.onSecondaryContainer,
       showCheckmark: false,
@@ -468,27 +474,24 @@ class _FilterChipButton extends StatelessWidget {
 
 // ── 地標卡片 ───────────────────────────────────────────────────────────────────
 
-/// 單筆地標卡片，支援左滑刪除（Dismissible）
 class _MarkerCard extends StatelessWidget {
   const _MarkerCard({
     required this.marker,
     required this.onTap,
     required this.onDelete,
+    required this.l10n,
   });
 
   final MarkerEntity marker;
   final VoidCallback onTap;
-
-  /// 確認後刪除的回呼（由外層呼叫 notifier）
   final VoidCallback onDelete;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      // 以 id 作為唯一鍵，確保左滑動作對應到正確資料
       key: ValueKey(marker.id),
       direction: DismissDirection.endToStart,
-      // 左滑時顯示的紅色刪除背景
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -497,33 +500,32 @@ class _MarkerCard extends StatelessWidget {
           color: Colors.red[400],
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Column(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.delete_outline, color: Colors.white, size: 26),
-            SizedBox(height: 2),
-            Text('刪除',
-                style: TextStyle(color: Colors.white, fontSize: 11)),
+            const Icon(Icons.delete_outline, color: Colors.white, size: 26),
+            const SizedBox(height: 2),
+            Text(l10n.swipeToDelete,
+                style:
+                    const TextStyle(color: Colors.white, fontSize: 11)),
           ],
         ),
       ),
-      // 左滑放開前彈出確認對話框
       confirmDismiss: (_) async {
         return await showDialog<bool>(
           context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('刪除地標'),
-            content: Text('確定要刪除「${marker.title}」嗎？'),
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.deleteMarker),
+            content: Text(l10n.deleteMarkerConfirm(marker.title)),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('取消'),
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
               ),
               FilledButton(
-                style:
-                    FilledButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('刪除'),
+                style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.delete),
               ),
             ],
           ),
@@ -542,19 +544,16 @@ class _MarkerCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // ── 左側縮圖 ──────────────────────────────────────────
                 _Thumbnail(
                     photoPath: marker.photoPaths.isNotEmpty
                         ? marker.photoPaths.first
                         : null),
                 const SizedBox(width: 12),
 
-                // ── 中間資訊 ──────────────────────────────────────────
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 標題（粗體，最多 1 行）
                       Text(
                         marker.title,
                         style: Theme.of(context)
@@ -565,9 +564,8 @@ class _MarkerCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-
-                      // 國家 + 日期（小字灰色）
                       Text(
+                        '${MarkerCategory.fromString(marker.category).emoji}  '
                         '${marker.country}  ·  '
                         '${marker.createdAt.year}/'
                         '${marker.createdAt.month.toString().padLeft(2, '0')}/'
@@ -584,14 +582,11 @@ class _MarkerCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 6),
-
-                      // 星號評分（size 16 實心/空心 icon）
                       _StarRow(rating: marker.rating),
                     ],
                   ),
                 ),
 
-                // ── 右側箭頭 ──────────────────────────────────────────
                 Icon(
                   Icons.chevron_right,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -607,7 +602,6 @@ class _MarkerCard extends StatelessWidget {
 
 // ── 縮圖 ───────────────────────────────────────────────────────────────────────
 
-/// 60×60 圓角縮圖；無照片時顯示佔位圖示
 class _Thumbnail extends StatelessWidget {
   const _Thumbnail({this.photoPath});
 
@@ -626,8 +620,6 @@ class _Thumbnail extends StatelessWidget {
                 width: 60,
                 height: 60,
                 fit: BoxFit.cover,
-                // 效能優化：cacheWidth 限制解碼解析度為 120px（2x 螢幕密度上限）
-                // 避免把原圖（數 MB）完整解碼進記憶體，大幅降低圖片記憶體占用
                 cacheWidth: 120,
                 errorBuilder: (_, __, ___) => _placeholder(context),
               )
@@ -648,7 +640,6 @@ class _Thumbnail extends StatelessWidget {
 
 // ── 星號列 ─────────────────────────────────────────────────────────────────────
 
-/// 只讀 1–5 星顯示（size 16）
 class _StarRow extends StatelessWidget {
   const _StarRow({required this.rating});
   final int rating;
@@ -670,10 +661,10 @@ class _StarRow extends StatelessWidget {
 
 // ── 空白狀態 ───────────────────────────────────────────────────────────────────
 
-/// 無地標資料時的置中插圖 + 新增按鈕
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onAdd});
+  const _EmptyState({required this.onAdd, required this.l10n});
   final VoidCallback onAdd;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
@@ -681,21 +672,17 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.map_outlined,
-            size: 80,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.map_outlined, size: 80, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
-            '尚無旅遊紀錄',
+            l10n.noRecordsYet,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Colors.grey[500],
                 ),
           ),
           const SizedBox(height: 6),
           Text(
-            '點擊下方按鈕開始記錄您的旅遊足跡',
+            l10n.startRecording,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.grey[400],
                 ),
@@ -704,7 +691,7 @@ class _EmptyState extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: onAdd,
             icon: const Icon(Icons.add_location_alt_outlined),
-            label: const Text('立即新增'),
+            label: Text(l10n.addNow),
             style: ElevatedButton.styleFrom(
               padding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 12),

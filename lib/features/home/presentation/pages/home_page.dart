@@ -4,32 +4,53 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/l10n/app_localizations.dart';
+import '../../../marker/domain/entities/marker_category.dart';
 import '../../../marker/domain/entities/marker_entity.dart';
 import '../../../marker/presentation/providers/marker_provider.dart';
 import '../providers/home_provider.dart';
 
+// ── 國旗 emoji 對照表（依 ISO 3166-1 alpha-2） ─────────────────────────────────
+const Map<String, String> _kCountryFlags = {
+  'Taiwan': '🇹🇼', 'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'China': '🇨🇳',
+  'Hong Kong': '🇭🇰', 'Macau': '🇲🇴', 'Mongolia': '🇲🇳',
+  'Thailand': '🇹🇭', 'Vietnam': '🇻🇳', 'Singapore': '🇸🇬',
+  'Malaysia': '🇲🇾', 'Indonesia': '🇮🇩', 'Philippines': '🇵🇭',
+  'Cambodia': '🇰🇭', 'Myanmar': '🇲🇲',
+  'India': '🇮🇳', 'Nepal': '🇳🇵', 'Sri Lanka': '🇱🇰',
+  'Maldives': '🇲🇻', 'Bhutan': '🇧🇹',
+  'United Kingdom': '🇬🇧', 'France': '🇫🇷', 'Germany': '🇩🇪',
+  'Italy': '🇮🇹', 'Spain': '🇪🇸', 'Portugal': '🇵🇹',
+  'Netherlands': '🇳🇱', 'Switzerland': '🇨🇭', 'Austria': '🇦🇹',
+  'Belgium': '🇧🇪', 'Sweden': '🇸🇪', 'Norway': '🇳🇴',
+  'Denmark': '🇩🇰', 'Finland': '🇫🇮', 'Poland': '🇵🇱',
+  'Czech Republic': '🇨🇿', 'Hungary': '🇭🇺', 'Greece': '🇬🇷',
+  'Croatia': '🇭🇷', 'Iceland': '🇮🇸',
+  'United States': '🇺🇸', 'Canada': '🇨🇦', 'Mexico': '🇲🇽',
+  'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Peru': '🇵🇪',
+  'Australia': '🇦🇺', 'New Zealand': '🇳🇿',
+  'UAE': '🇦🇪', 'Israel': '🇮🇱',
+  'Egypt': '🇪🇬', 'Morocco': '🇲🇦',
+};
+
+String _flag(String country) => _kCountryFlags[country] ?? '🌍';
+
 // ══════════════════════════════════════════════════════════════════════════════
 // AppShell — 底部導覽列的持久容器
 // ══════════════════════════════════════════════════════════════════════════════
-//
-// 搭配 app_router.dart 的 ShellRoute 使用。
-// Shell 負責渲染底部 NavigationBar，child 是各分頁的 Scaffold。
-// 這樣切換分頁時 NavigationBar 不會重建，避免視覺閃爍。
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.child});
 
   final Widget child;
 
-  // 路由路徑 → NavigationBar 的 selectedIndex 對應表
   static int _locationToIndex(String location) {
     if (location.startsWith('/marker')) return 1;
     if (location.startsWith('/map')) return 2;
     if (location.startsWith('/settings')) return 3;
-    return 0; // 首頁
+    return 0;
   }
 
-  // selectedIndex → 要跳轉的路由路徑
   static String _indexToLocation(int index) {
     switch (index) {
       case 1:
@@ -45,7 +66,7 @@ class AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 從 GoRouterState 取得當前路徑，決定高亮的分頁
+    final l10n = AppLocalizations.of(context);
     final location = GoRouterState.of(context).matchedLocation;
     final selectedIndex = _locationToIndex(location);
 
@@ -54,26 +75,26 @@ class AppShell extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (i) => context.go(_indexToLocation(i)),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: '首頁',
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: l10n.navHome,
           ),
           NavigationDestination(
-            icon: Icon(Icons.place_outlined),
-            selectedIcon: Icon(Icons.place),
-            label: '標記',
+            icon: const Icon(Icons.place_outlined),
+            selectedIcon: const Icon(Icons.place),
+            label: l10n.navMarkers,
           ),
           NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: '地圖',
+            icon: const Icon(Icons.map_outlined),
+            selectedIcon: const Icon(Icons.map),
+            label: l10n.navMap,
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: '設定',
+            icon: const Icon(Icons.settings_outlined),
+            selectedIcon: const Icon(Icons.settings),
+            label: l10n.navSettings,
           ),
         ],
       ),
@@ -82,49 +103,265 @@ class AppShell extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// HomePage — 首頁內容
+// HomePage
 // ══════════════════════════════════════════════════════════════════════════════
-//
-// 結構：
-//   1. 統計卡片   — GridView（crossAxisCount: 2）三張藍色漸層卡片
-//   2. 最近新增   — 水平 PageView 顯示最近 5 筆標記
-//   3. 快速入口   — 三個大按鈕：新增標記 / 查詢紀錄 / 開啟地圖
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
+  void _showCountryBreakdown(
+      BuildContext context, List<MarkerEntity> markers, AppLocalizations l10n) {
+    final counts = <String, int>{};
+    for (final m in markers) {
+      counts[m.country] = (counts[m.country] ?? 0) + 1;
+    }
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    _showDetailSheet(
+      context: context,
+      title: l10n.footprintDistrib,
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: sorted.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+        itemBuilder: (_, i) {
+          final e = sorted[i];
+          final pct = markers.isEmpty ? 0.0 : e.value / markers.length;
+          return ListTile(
+            dense: true,
+            leading: Text(_flag(e.key), style: const TextStyle(fontSize: 24)),
+            title: Text(e.key),
+            subtitle: LinearProgressIndicator(
+              value: pct,
+              minHeight: 4,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            trailing: Text(l10n.recordCount(e.value),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showCountriesList(
+      BuildContext context, List<MarkerEntity> markers, AppLocalizations l10n) {
+    final countries = markers.map((m) => m.country).toSet().toList()..sort();
+
+    _showDetailSheet(
+      context: context,
+      title: l10n.countriesListTitle(countries.length),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: countries.map((c) {
+          return Chip(
+            avatar: Text(_flag(c), style: const TextStyle(fontSize: 16)),
+            label: Text(c),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  void _showRatingBreakdown(
+      BuildContext context, List<MarkerEntity> markers, AppLocalizations l10n) {
+    final counts = List.filled(5, 0);
+    for (final m in markers) {
+      if (m.rating >= 1 && m.rating <= 5) counts[m.rating - 1]++;
+    }
+    final maxCount = counts.reduce((a, b) => a > b ? a : b);
+
+    _showDetailSheet(
+      context: context,
+      title: l10n.ratingDistrib,
+      child: Column(
+        children: List.generate(5, (i) {
+          final star = 5 - i;
+          final count = counts[star - 1];
+          final pct = maxCount == 0 ? 0.0 : count / maxCount;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Text('$star ★',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    minHeight: 14,
+                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.amber,
+                    backgroundColor: Colors.amber.withValues(alpha: 0.15),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 32,
+                  child: Text('$count',
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  void _showCategoryBreakdown(
+      BuildContext context, List<MarkerEntity> markers, AppLocalizations l10n) {
+    final counts = <MarkerCategory, int>{};
+    for (final m in markers) {
+      final cat = MarkerCategory.fromString(m.category);
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    _showDetailSheet(
+      context: context,
+      title: l10n.categoryDistrib,
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: sorted.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+        itemBuilder: (_, i) {
+          final e = sorted[i];
+          final pct = markers.isEmpty ? 0.0 : e.value / markers.length;
+          return ListTile(
+            dense: true,
+            leading: Text(e.key.emoji, style: const TextStyle(fontSize: 24)),
+            title: Text(e.key.localizedLabel(l10n.isEn)),
+            subtitle: LinearProgressIndicator(
+              value: pct,
+              minHeight: 4,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            trailing: Text(l10n.recordCount(e.value),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showDetailSheet({
+    required BuildContext context,
+    required String title,
+    required Widget child,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, controller) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Text(title,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                child: child,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final summaryAsync = ref.watch(travelSummaryProvider);
     final markersAsync = ref.watch(markerNotifierProvider);
 
     return Scaffold(
-      // 無 AppBar：頂部由內容區的 Header 替代，畫面更沉浸
       body: SafeArea(
         child: summaryAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('載入失敗：$e')),
+          error: (e, _) => Center(child: Text('${l10n.loadFailed}：$e')),
           data: (summary) {
-            // 取最近 5 筆標記（依建立時間降冪）
-            final recentMarkers = markersAsync.when(
-              data: (list) {
-                final sorted = [...list]
-                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                return sorted.take(5).toList();
-              },
-              loading: () => <MarkerEntity>[],
-              error: (_, __) => <MarkerEntity>[],
-            );
+            final allMarkers = markersAsync.valueOrNull ?? [];
+            final recentMarkers = () {
+              final sorted = [...allMarkers]
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+              return sorted.take(5).toList();
+            }();
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
               children: [
-                // ── Header 問候區 ──────────────────────────────────────────
-                _Header(),
-                const SizedBox(height: 24),
+                _Header(l10n: l10n),
+                const SizedBox(height: 20),
 
-                // ── 1. 統計卡片 ────────────────────────────────────────────
-                _SectionTitle('統計概覽'),
+                // ── 快速入口 ──────────────────────────────────────────────
+                _SectionTitle(l10n.homeQuickActions),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickActionButton(
+                        icon: Icons.add_location_alt_outlined,
+                        label: l10n.homeAddMarker,
+                        onTap: () => context.push('/marker/create'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _QuickActionButton(
+                        icon: Icons.search_outlined,
+                        label: l10n.homeSearchRecords,
+                        onTap: () => context.go('/marker'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _QuickActionButton(
+                        icon: Icons.map_outlined,
+                        label: l10n.homeOpenMap,
+                        onTap: () => context.go('/map'),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 28),
+
+                // ── 統計概覽 ──────────────────────────────────────────────
+                _SectionTitle(l10n.homeStats),
                 const SizedBox(height: 12),
                 GridView.count(
                   crossAxisCount: 2,
@@ -132,50 +369,98 @@ class HomePage extends ConsumerWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
-                  childAspectRatio: 1.55,
+                  childAspectRatio: 1.35,
                   children: [
                     _StatCard(
-                      icon: Icons.place,
+                      icon: Icons.place_rounded,
                       value: '${summary.totalMarkers}',
-                      unit: '筆',
-                      label: '旅遊足跡',
+                      unit: l10n.isEn ? '' : '筆',
+                      label: l10n.homeTotalMarkers,
                       gradientColors: const [
-                        Color(0xFF1565C0),
-                        Color(0xFF1E88E5),
+                        Color(0xFFFF6B35),
+                        Color(0xFFFF9500),
                       ],
+                      onTap: allMarkers.isEmpty
+                          ? null
+                          : () => _showCountryBreakdown(
+                              context, allMarkers, l10n),
                     ),
                     _StatCard(
-                      icon: Icons.flag,
+                      icon: Icons.public_rounded,
                       value: '${summary.totalCountries}',
-                      unit: '個',
-                      label: '造訪國家',
+                      unit: l10n.isEn ? '' : '個',
+                      label: l10n.homeTotalCountries,
                       gradientColors: const [
-                        Color(0xFF283593),
-                        Color(0xFF3949AB),
+                        Color(0xFF8B5CF6),
+                        Color(0xFFEC4899),
                       ],
+                      onTap: allMarkers.isEmpty
+                          ? null
+                          : () =>
+                              _showCountriesList(context, allMarkers, l10n),
                     ),
                     _StatCard(
-                      icon: Icons.star,
+                      icon: Icons.star_rounded,
                       value: summary.averageRating > 0
                           ? summary.averageRating.toStringAsFixed(1)
                           : '--',
                       unit: '',
-                      label: '平均評分',
+                      label: l10n.homeAvgRating,
                       prefix: summary.averageRating > 0 ? '★ ' : '',
                       gradientColors: const [
-                        Color(0xFF00695C),
-                        Color(0xFF00897B),
+                        Color(0xFF06B6D4),
+                        Color(0xFF2563EB),
                       ],
+                      onTap: allMarkers.isEmpty
+                          ? null
+                          : () =>
+                              _showRatingBreakdown(context, allMarkers, l10n),
+                    ),
+                    _StatCard(
+                      icon: Icons.category_rounded,
+                      value: () {
+                        if (allMarkers.isEmpty) return '--';
+                        final counts = <MarkerCategory, int>{};
+                        for (final m in allMarkers) {
+                          final cat = MarkerCategory.fromString(m.category);
+                          counts[cat] = (counts[cat] ?? 0) + 1;
+                        }
+                        final top = counts.entries
+                            .reduce((a, b) => a.value >= b.value ? a : b)
+                            .key;
+                        return top.emoji;
+                      }(),
+                      unit: () {
+                        if (allMarkers.isEmpty) return '';
+                        final counts = <MarkerCategory, int>{};
+                        for (final m in allMarkers) {
+                          final cat = MarkerCategory.fromString(m.category);
+                          counts[cat] = (counts[cat] ?? 0) + 1;
+                        }
+                        return counts.entries
+                            .reduce((a, b) => a.value >= b.value ? a : b)
+                            .key
+                            .localizedLabel(l10n.isEn);
+                      }(),
+                      label: l10n.homeTopCategory,
+                      gradientColors: const [
+                        Color(0xFF10B981),
+                        Color(0xFF059669),
+                      ],
+                      onTap: allMarkers.isEmpty
+                          ? null
+                          : () => _showCategoryBreakdown(
+                              context, allMarkers, l10n),
                     ),
                   ],
                 ),
 
                 const SizedBox(height: 28),
 
-                // ── 2. 最近新增 ────────────────────────────────────────────
+                // ── 最近新增 ──────────────────────────────────────────────
                 Row(
                   children: [
-                    _SectionTitle('最近新增'),
+                    _SectionTitle(l10n.homeRecentAdded),
                     const Spacer(),
                     TextButton(
                       onPressed: () => context.go('/marker'),
@@ -185,7 +470,7 @@ class HomePage extends ConsumerWidget {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       child: Text(
-                        '查看全部',
+                        l10n.homeViewAll,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.primary,
                           fontSize: 13,
@@ -198,10 +483,11 @@ class HomePage extends ConsumerWidget {
                 SizedBox(
                   height: 190,
                   child: recentMarkers.isEmpty
-                      ? _EmptyRecentCard()
+                      ? _EmptyRecentCard(l10n: l10n)
                       : PageView.builder(
                           padEnds: false,
-                          controller: PageController(viewportFraction: 0.88),
+                          controller:
+                              PageController(viewportFraction: 0.88),
                           itemCount: recentMarkers.length,
                           itemBuilder: (_, i) => Padding(
                             padding: const EdgeInsets.only(right: 12),
@@ -214,39 +500,6 @@ class HomePage extends ConsumerWidget {
                             ),
                           ),
                         ),
-                ),
-
-                const SizedBox(height: 28),
-
-                // ── 3. 快速入口 ────────────────────────────────────────────
-                _SectionTitle('快速入口'),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickActionButton(
-                        icon: Icons.add_location_alt_outlined,
-                        label: '新增標記',
-                        onTap: () => context.push('/marker/create'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickActionButton(
-                        icon: Icons.search_outlined,
-                        label: '查詢紀錄',
-                        onTap: () => context.go('/marker'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickActionButton(
-                        icon: Icons.map_outlined,
-                        label: '開啟地圖',
-                        onTap: () => context.go('/map'),
-                      ),
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 8),
               ],
@@ -262,9 +515,10 @@ class HomePage extends ConsumerWidget {
 // 私有元件
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── Header：問候語 ──────────────────────────────────────────────────────────────
-
 class _Header extends StatelessWidget {
+  const _Header({required this.l10n});
+  final AppLocalizations l10n;
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -281,7 +535,7 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                '記錄每一段珍貴旅程',
+                l10n.homeSubtitle,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -299,8 +553,6 @@ class _Header extends StatelessWidget {
   }
 }
 
-// ── 區塊標題 ────────────────────────────────────────────────────────────────────
-
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.title);
   final String title;
@@ -316,8 +568,6 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// ── 統計卡片 ────────────────────────────────────────────────────────────────────
-
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.icon,
@@ -326,6 +576,7 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.gradientColors,
     this.prefix = '',
+    this.onTap,
   });
 
   final IconData icon;
@@ -334,60 +585,129 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String prefix;
   final List<Color> gradientColors;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: gradientColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final shadowColor = gradientColors.last.withValues(alpha: 0.45);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: shadowColor,
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // 圖示
-          Icon(icon, color: Colors.white.withValues(alpha: 0.9), size: 24),
-          // 數值
-          RichText(
-            text: TextSpan(
-              style: const TextStyle(color: Colors.white),
-              children: [
-                TextSpan(
-                  text: '$prefix$value',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -22,
+                top: -22,
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.12),
                   ),
                 ),
-                if (unit.isNotEmpty)
-                  TextSpan(
-                    text: ' $unit',
-                    style: const TextStyle(fontSize: 13),
+              ),
+              Positioned(
+                right: 16,
+                bottom: -30,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.08),
                   ),
-              ],
-            ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 22),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RichText(
+                          text: TextSpan(
+                            style: const TextStyle(color: Colors.white),
+                            children: [
+                              TextSpan(
+                                text: '$prefix$value',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.1,
+                                ),
+                              ),
+                              if (unit.isNotEmpty)
+                                TextSpan(
+                                  text: ' $unit',
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                label,
+                                style: TextStyle(
+                                  color:
+                                      Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            if (onTap != null)
+                              Icon(Icons.arrow_forward_ios_rounded,
+                                  color:
+                                      Colors.white.withValues(alpha: 0.6),
+                                  size: 11),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          // 標籤
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
-              fontSize: 12,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
-
-// ── 最近新增：標記卡片 ──────────────────────────────────────────────────────────
 
 class _RecentMarkerCard extends StatelessWidget {
   const _RecentMarkerCard({required this.marker, required this.onTap});
@@ -407,7 +727,6 @@ class _RecentMarkerCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // ── 背景：照片或漸層 ─────────────────────────────────────────
             if (firstPhoto != null && File(firstPhoto).existsSync())
               Image.file(
                 File(firstPhoto),
@@ -417,7 +736,6 @@ class _RecentMarkerCard extends StatelessWidget {
             else
               _defaultBackground(),
 
-            // ── 底部漸層遮罩 ─────────────────────────────────────────────
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -429,7 +747,6 @@ class _RecentMarkerCard extends StatelessWidget {
               ),
             ),
 
-            // ── 文字內容 ─────────────────────────────────────────────────
             Positioned(
               left: 12,
               right: 12,
@@ -451,7 +768,8 @@ class _RecentMarkerCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      const Icon(Icons.flag, color: Colors.white70, size: 12),
+                      Text(_flag(marker.country),
+                          style: const TextStyle(fontSize: 13)),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -474,7 +792,6 @@ class _RecentMarkerCard extends StatelessWidget {
     );
   }
 
-  // 無照片時的預設深藍漸層背景
   Widget _defaultBackground() => Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -485,8 +802,6 @@ class _RecentMarkerCard extends StatelessWidget {
         ),
       );
 }
-
-// ── 評分星號列（唯讀）──────────────────────────────────────────────────────────
 
 class _StarRow extends StatelessWidget {
   const _StarRow({required this.rating});
@@ -508,9 +823,10 @@ class _StarRow extends StatelessWidget {
   }
 }
 
-// ── 無最近紀錄時的佔位元件 ──────────────────────────────────────────────────────
-
 class _EmptyRecentCard extends StatelessWidget {
+  const _EmptyRecentCard({required this.l10n});
+  final AppLocalizations l10n;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -528,14 +844,14 @@ class _EmptyRecentCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '尚無旅遊紀錄',
+            l10n.homeNoRecords,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
           ),
           const SizedBox(height: 4),
           Text(
-            '點擊「新增標記」開始記錄旅程',
+            l10n.homeStartRecord,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.outlineVariant,
                 ),
@@ -545,8 +861,6 @@ class _EmptyRecentCard extends StatelessWidget {
     );
   }
 }
-
-// ── 快速入口按鈕 ────────────────────────────────────────────────────────────────
 
 class _QuickActionButton extends StatelessWidget {
   const _QuickActionButton({
@@ -578,7 +892,8 @@ class _QuickActionButton extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 28),
+              Icon(icon,
+                  color: Theme.of(context).colorScheme.primary, size: 28),
               const SizedBox(height: 6),
               Text(
                 label,

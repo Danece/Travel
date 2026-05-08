@@ -11,6 +11,7 @@ class SearchMarkers {
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
+    List<String>? categories,
   }) =>
       _repository.searchMarkers(
         title: title,
@@ -18,5 +19,6 @@ class SearchMarkers {
         minRating: minRating,
         startDate: startDate,
         endDate: endDate,
+        categories: categories,
       );
 }

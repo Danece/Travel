@@ -11,6 +11,7 @@ abstract final class MarkerTable {
   static const String colRating = 'rating';
   static const String colNote = 'note';
   static const String colPhotoPaths = 'photo_paths';
+  static const String colCategory = 'category';
 
   static const String createTableSql = '''
     CREATE TABLE $tableName (
@@ -22,7 +23,8 @@ abstract final class MarkerTable {
       $colLongitude   REAL NOT NULL,
       $colRating      INTEGER NOT NULL CHECK($colRating BETWEEN 1 AND 5),
       $colNote        TEXT NOT NULL DEFAULT '',
-      $colPhotoPaths  TEXT NOT NULL DEFAULT '[]'
+      $colPhotoPaths  TEXT NOT NULL DEFAULT '[]',
+      $colCategory    TEXT NOT NULL DEFAULT 'attraction'
     )
   ''';
 }

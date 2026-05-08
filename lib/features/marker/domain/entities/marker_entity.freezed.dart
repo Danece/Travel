@@ -23,6 +23,7 @@ mixin _$MarkerEntity {
   int get rating;
   String get note;
   List<String> get photoPaths;
+  String get category;
 
   /// Create a copy of MarkerEntity
   /// with the given fields replaced by the non-null parameter values.
@@ -49,7 +50,9 @@ mixin _$MarkerEntity {
             (identical(other.rating, rating) || other.rating == rating) &&
             (identical(other.note, note) || other.note == note) &&
             const DeepCollectionEquality()
-                .equals(other.photoPaths, photoPaths));
+                .equals(other.photoPaths, photoPaths) &&
+            (identical(other.category, category) ||
+                other.category == category));
   }
 
   @override
@@ -63,11 +66,12 @@ mixin _$MarkerEntity {
       longitude,
       rating,
       note,
-      const DeepCollectionEquality().hash(photoPaths));
+      const DeepCollectionEquality().hash(photoPaths),
+      category);
 
   @override
   String toString() {
-    return 'MarkerEntity(id: $id, title: $title, country: $country, createdAt: $createdAt, latitude: $latitude, longitude: $longitude, rating: $rating, note: $note, photoPaths: $photoPaths)';
+    return 'MarkerEntity(id: $id, title: $title, country: $country, createdAt: $createdAt, latitude: $latitude, longitude: $longitude, rating: $rating, note: $note, photoPaths: $photoPaths, category: $category)';
   }
 }
 
@@ -86,7 +90,8 @@ abstract mixin class $MarkerEntityCopyWith<$Res> {
       double longitude,
       int rating,
       String note,
-      List<String> photoPaths});
+      List<String> photoPaths,
+      String category});
 }
 
 /// @nodoc
@@ -110,6 +115,7 @@ class _$MarkerEntityCopyWithImpl<$Res> implements $MarkerEntityCopyWith<$Res> {
     Object? rating = null,
     Object? note = null,
     Object? photoPaths = null,
+    Object? category = null,
   }) {
     return _then(_self.copyWith(
       id: null == id
@@ -148,6 +154,10 @@ class _$MarkerEntityCopyWithImpl<$Res> implements $MarkerEntityCopyWith<$Res> {
           ? _self.photoPaths
           : photoPaths // ignore: cast_nullable_to_non_nullable
               as List<String>,
+      category: null == category
+          ? _self.category
+          : category // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }
@@ -252,7 +262,8 @@ extension MarkerEntityPatterns on MarkerEntity {
             double longitude,
             int rating,
             String note,
-            List<String> photoPaths)?
+            List<String> photoPaths,
+            String category)?
         $default, {
     required TResult orElse(),
   }) {
@@ -268,7 +279,8 @@ extension MarkerEntityPatterns on MarkerEntity {
             _that.longitude,
             _that.rating,
             _that.note,
-            _that.photoPaths);
+            _that.photoPaths,
+            _that.category);
       case _:
         return orElse();
     }
@@ -298,7 +310,8 @@ extension MarkerEntityPatterns on MarkerEntity {
             double longitude,
             int rating,
             String note,
-            List<String> photoPaths)
+            List<String> photoPaths,
+            String category)
         $default,
   ) {
     final _that = this;
@@ -313,7 +326,8 @@ extension MarkerEntityPatterns on MarkerEntity {
             _that.longitude,
             _that.rating,
             _that.note,
-            _that.photoPaths);
+            _that.photoPaths,
+            _that.category);
     }
   }
 
@@ -340,7 +354,8 @@ extension MarkerEntityPatterns on MarkerEntity {
             double longitude,
             int rating,
             String note,
-            List<String> photoPaths)?
+            List<String> photoPaths,
+            String category)?
         $default,
   ) {
     final _that = this;
@@ -355,7 +370,8 @@ extension MarkerEntityPatterns on MarkerEntity {
             _that.longitude,
             _that.rating,
             _that.note,
-            _that.photoPaths);
+            _that.photoPaths,
+            _that.category);
       case _:
         return null;
     }
@@ -374,7 +390,8 @@ class _MarkerEntity implements MarkerEntity {
       required this.longitude,
       required this.rating,
       this.note = '',
-      final List<String> photoPaths = const []})
+      final List<String> photoPaths = const [],
+      this.category = 'attraction'})
       : assert(rating >= 1 && rating <= 5, 'rating must be between 1 and 5'),
         _photoPaths = photoPaths;
 
@@ -404,6 +421,10 @@ class _MarkerEntity implements MarkerEntity {
     return EqualUnmodifiableListView(_photoPaths);
   }
 
+  @override
+  @JsonKey()
+  final String category;
+
   /// Create a copy of MarkerEntity
   /// with the given fields replaced by the non-null parameter values.
   @override
@@ -429,7 +450,9 @@ class _MarkerEntity implements MarkerEntity {
             (identical(other.rating, rating) || other.rating == rating) &&
             (identical(other.note, note) || other.note == note) &&
             const DeepCollectionEquality()
-                .equals(other._photoPaths, _photoPaths));
+                .equals(other._photoPaths, _photoPaths) &&
+            (identical(other.category, category) ||
+                other.category == category));
   }
 
   @override
@@ -443,11 +466,12 @@ class _MarkerEntity implements MarkerEntity {
       longitude,
       rating,
       note,
-      const DeepCollectionEquality().hash(_photoPaths));
+      const DeepCollectionEquality().hash(_photoPaths),
+      category);
 
   @override
   String toString() {
-    return 'MarkerEntity(id: $id, title: $title, country: $country, createdAt: $createdAt, latitude: $latitude, longitude: $longitude, rating: $rating, note: $note, photoPaths: $photoPaths)';
+    return 'MarkerEntity(id: $id, title: $title, country: $country, createdAt: $createdAt, latitude: $latitude, longitude: $longitude, rating: $rating, note: $note, photoPaths: $photoPaths, category: $category)';
   }
 }
 
@@ -468,7 +492,8 @@ abstract mixin class _$MarkerEntityCopyWith<$Res>
       double longitude,
       int rating,
       String note,
-      List<String> photoPaths});
+      List<String> photoPaths,
+      String category});
 }
 
 /// @nodoc
@@ -493,6 +518,7 @@ class __$MarkerEntityCopyWithImpl<$Res>
     Object? rating = null,
     Object? note = null,
     Object? photoPaths = null,
+    Object? category = null,
   }) {
     return _then(_MarkerEntity(
       id: null == id
@@ -531,6 +557,10 @@ class __$MarkerEntityCopyWithImpl<$Res>
           ? _self._photoPaths
           : photoPaths // ignore: cast_nullable_to_non_nullable
               as List<String>,
+      category: null == category
+          ? _self.category
+          : category // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }

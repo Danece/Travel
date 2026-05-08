@@ -4,13 +4,10 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// google_maps_flutter 和 google_maps_cluster_manager 都有同名的
-// ClusterManager / Cluster 型別，使用 prefix 消除歧義
-import 'package:google_maps_cluster_manager/google_maps_cluster_manager.dart'
-    as cm;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../../core/l10n/app_localizations.dart';
 import '../../../marker/domain/entities/marker_entity.dart';
 import '../../../marker/presentation/pages/marker_detail_page.dart';
 import '../providers/map_provider.dart';
@@ -19,11 +16,10 @@ import '../providers/map_provider.dart';
 //
 // 功能摘要：
 //   1. 全螢幕 Google Map，初始鏡頭對準台灣中心
-//   2. ClusterManager 聚合所有地標：
-//      · 單一標記 → 縮圖圓形 icon（有照片）或藍色預設 icon
-//      · 2–9 個聚合 → 顯示實際數字的藍色圓圈
-//      · 10–29 個 → "10+"，30–49 → "30+"，50–99 → "50+"，100+ → "100+"
-//   3. 點擊聚合圓圈 → 縮放到群組範圍
+//   2. 原生 ClusterManager（google_maps_flutter 2.6+）聚合所有地標
+//      · 個別標記 → 縮圖圓形 icon（有照片）或藍色預設 icon
+//      · 聚合標記 → 平台原生樣式（藍圈 + 數字）
+//   3. 點擊聚合圓圈 → 縮放到群組 LatLngBounds
 //   4. 點擊個別標記 → 底部卡片（縮圖 + 標題 + 評分），點卡片進詳情頁
 //   5. 右上角篩選按鈕 → BottomSheet（國家多選 + 最低評分）
 
@@ -38,22 +34,21 @@ class _MapPageState extends ConsumerState<MapPage> {
   // ── 地圖控制器 ─────────────────────────────────────────────────────────────
   GoogleMapController? _mapController;
 
-  // ── 聚合管理器 ─────────────────────────────────────────────────────────────
-  late cm.ClusterManager<_MapItem> _clusterManager;
+  // ── 原生聚合管理器（google_maps_flutter 2.6+）──────────────────────────────
+  static const _clusterManagerId = ClusterManagerId('travel_markers');
+  late ClusterManager _clusterManager;
 
-  /// Google Map 目前顯示的 Marker 集合（由 ClusterManager 更新）
+  /// Google Map 目前顯示的 Marker 集合
   Set<Marker> _markers = {};
 
   // ── 資料快取 ───────────────────────────────────────────────────────────────
-  /// 目前從 provider 取得的完整地標清單（用於篩選）
   List<MarkerEntity> _allMarkers = [];
 
-  // 效能優化：自訂圓形縮圖需解碼圖片 + dart:ui Canvas 繪製，建立成本高
-  // 以照片路徑為 key 快取結果，相同路徑的標記直接讀快取，避免重複解碼
+  // 效能優化：以照片路徑為 key 快取圓形縮圖，避免重複解碼
   final Map<String, BitmapDescriptor> _bitmapCache = {};
 
-  // 效能優化：聚合圓圈依數量等級快取，同等級標記共用同一 BitmapDescriptor
-  final Map<int, BitmapDescriptor> _clusterIconCache = {};
+  // 防止多次 _refreshMarkers 並發時舊的結果覆蓋新的
+  int _refreshToken = 0;
 
   // ── 篩選狀態 ───────────────────────────────────────────────────────────────
   Set<String> _filterCountries = {};
@@ -73,14 +68,9 @@ class _MapPageState extends ConsumerState<MapPage> {
   @override
   void initState() {
     super.initState();
-    // ClusterManager 初始化（空列表，資料載入後透過 setItems 更新）
-    _clusterManager = cm.ClusterManager<_MapItem>(
-      const <_MapItem>[],   // 明確型別，避免 Dart 推斷為 dynamic
-      _onMarkersUpdated,
-      // 套件將 markerBuilder 定義為 Function(dynamic)，
-      // 需以 dynamic 接收再向下轉型為 cm.Cluster<_MapItem>
-      markerBuilder: (dynamic cluster) =>
-          _buildMarker(cluster as cm.Cluster<_MapItem>),
+    _clusterManager = ClusterManager(
+      clusterManagerId: _clusterManagerId,
+      onClusterTap: _onClusterTap,
     );
     _checkLocation();
   }
@@ -110,55 +100,58 @@ class _MapPageState extends ConsumerState<MapPage> {
   }
 
   void _showLocationDeniedDialog() {
+    final l10n = AppLocalizations.of(context);
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('需要位置權限'),
-        content: const Text('定位功能已被關閉，請前往系統設定開啟位置存取權限。'),
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.locationPermission),
+        content: Text(l10n.locationPermissionContent),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(ctx);
               openAppSettings();
             },
-            child: const Text('前往設定'),
+            child: Text(l10n.goToSettings),
           ),
         ],
       ),
     );
   }
 
-  // ── ClusterManager 回呼 ───────────────────────────────────────────────────
-
-  /// ClusterManager 計算完成後更新 Marker 集合
-  void _onMarkersUpdated(Set<Marker> markers) {
-    if (mounted) setState(() => _markers = markers);
-  }
-
   // ── 地圖事件 ──────────────────────────────────────────────────────────────
 
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
-    // 告知 ClusterManager 地圖已建立，後續操作需要 mapId
-    _clusterManager.setMapId(controller.mapId);
-    // 地圖建立後若資料已就緒，立即渲染標記
-    if (_allMarkers.isNotEmpty) _refreshCluster();
+    if (_allMarkers.isNotEmpty) _refreshMarkers();
   }
 
-  void _onCameraMove(CameraPosition position) =>
-      _clusterManager.onCameraMove(position);
+  // ── 聚合點擊：縮放到群組範圍 ──────────────────────────────────────────────
 
-  // v3.x API：camera idle 時呼叫 updateMap() 觸發聚合重算
-  void _onCameraIdle() => _clusterManager.updateMap();
+  void _onClusterTap(Cluster cluster) {
+    final bounds = cluster.bounds;
+    if (bounds.southwest.latitude == bounds.northeast.latitude &&
+        bounds.southwest.longitude == bounds.northeast.longitude) {
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(cluster.position, 16),
+      );
+      return;
+    }
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngBounds(bounds, 64),
+    );
+  }
 
-  // ── 聚合刷新 ──────────────────────────────────────────────────────────────
+  // ── 標記刷新 ──────────────────────────────────────────────────────────────
 
-  /// 套用目前篩選條件並更新 ClusterManager 的 items
-  void _refreshCluster() {
+  /// 套用篩選條件，非同步建立所有 Marker（含縮圖）並更新地圖
+  Future<void> _refreshMarkers() async {
+    final token = ++_refreshToken;
+
     final filtered = _allMarkers.where((m) {
       if (_filterCountries.isNotEmpty &&
           !_filterCountries.contains(m.country)) {
@@ -170,44 +163,32 @@ class _MapPageState extends ConsumerState<MapPage> {
       return true;
     }).toList();
 
-    _clusterManager.setItems(
-      filtered.map((e) => _MapItem(e)).toList(),
+    final markers = await Future.wait(
+      filtered.map(_buildSingleMarker),
     );
-  }
 
-  // ── Marker 建構（ClusterManager markerBuilder）────────────────────────────
-
-  /// ClusterManager 呼叫此方法建立每個 Marker（包含聚合與個別）
-  Future<Marker> _buildMarker(cm.Cluster<_MapItem> cluster) async {
-    if (!cluster.isMultiple) {
-      // ── 個別標記 ──────────────────────────────────────────────────────
-      final entity = cluster.items.first.entity;
-      final icon = await _getMarkerIcon(entity);
-      return Marker(
-        markerId: MarkerId(cluster.getId()),
-        position: cluster.location,
-        icon: icon,
-        onTap: () => _onMarkerTap(entity),
-      );
-    } else {
-      // ── 聚合標記 ──────────────────────────────────────────────────────
-      final icon = await _getClusterIcon(cluster.count);
-      return Marker(
-        markerId: MarkerId(cluster.getId()),
-        position: cluster.location,
-        icon: icon,
-        onTap: () => _onClusterTap(cluster),
-      );
+    if (mounted && token == _refreshToken) {
+      setState(() => _markers = markers.toSet());
     }
   }
 
-  // ── Bitmap 取得（含快取）──────────────────────────────────────────────────
+  /// 建立單一 Marker（含自訂圓形縮圖 icon），並關聯至原生 ClusterManager
+  Future<Marker> _buildSingleMarker(MarkerEntity entity) async {
+    final icon = await _getMarkerIcon(entity);
+    return Marker(
+      markerId: MarkerId(entity.id),
+      position: LatLng(entity.latitude, entity.longitude),
+      icon: icon,
+      clusterManagerId: _clusterManagerId,
+      onTap: () => _onMarkerTap(entity),
+    );
+  }
+
+  // ── Marker Icon 取得（含快取）──────────────────────────────────────────────
 
   /// 取得個別地標的 icon：有照片 → 圓形縮圖；無照片 → 藍色預設
   Future<BitmapDescriptor> _getMarkerIcon(MarkerEntity entity) async {
     // 效能優化：標記總數超過 200 時跳過自訂縮圖解碼
-    // 大量標記同時呼叫 _buildCircularPhotoIcon 會造成 UI jank（主執行緒圖片解碼阻塞）
-    // 改用輕量的預設藍色標記，確保地圖操作流暢
     if (_allMarkers.length > 200) {
       return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
     }
@@ -217,7 +198,6 @@ class _MapPageState extends ConsumerState<MapPage> {
     }
 
     final path = entity.photoPaths.first;
-    // 效能優化：命中快取時直接回傳，避免重複解碼同一張照片
     if (_bitmapCache.containsKey(path)) return _bitmapCache[path]!;
 
     try {
@@ -225,39 +205,17 @@ class _MapPageState extends ConsumerState<MapPage> {
       _bitmapCache[path] = icon;
       return icon;
     } catch (_) {
-      // 圖片讀取失敗（路徑已刪除等）→ 退回藍色預設
       return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
     }
-  }
-
-  /// 取得聚合圓圈 icon（依數量等級快取）
-  Future<BitmapDescriptor> _getClusterIcon(int count) async {
-    // 以等級作為快取 key，同等級共用相同 bitmap
-    final tier = _clusterTier(count);
-    if (_clusterIconCache.containsKey(tier)) return _clusterIconCache[tier]!;
-
-    final icon = await _buildClusterBitmap(count, tier);
-    _clusterIconCache[tier] = icon;
-    return icon;
-  }
-
-  /// 判斷聚合數量等級（用於快取 key 與標籤）
-  static int _clusterTier(int count) {
-    if (count >= 100) return 100;
-    if (count >= 50) return 50;
-    if (count >= 30) return 30;
-    if (count >= 10) return 10;
-    return count; // 2–9：以實際數量為 key，確保顯示正確數字
   }
 
   // ── Bitmap 建構（dart:ui）────────────────────────────────────────────────
 
   /// 從照片路徑建立圓形縮圖 BitmapDescriptor（56×56 dp，2x 解析度生成）
   Future<BitmapDescriptor> _buildCircularPhotoIcon(String path) async {
-    const int logical = 56; // 邏輯尺寸（dp）
-    const int pixel = logical * 2; // 2x 解析度像素尺寸
+    const int logical = 56;
+    const int pixel = logical * 2;
 
-    // 解碼照片並縮放至目標尺寸
     final bytes = await File(path).readAsBytes();
     final codec = await ui.instantiateImageCodec(
       bytes,
@@ -271,14 +229,12 @@ class _MapPageState extends ConsumerState<MapPage> {
     final canvas = ui.Canvas(recorder);
     const double cx = pixel / 2;
 
-    // 白色外框圓
     canvas.drawCircle(
       const Offset(cx, cx),
       cx,
       Paint()..color = Colors.white,
     );
 
-    // 裁切路徑（圓形，留 3px 邊框）
     canvas.clipPath(
       Path()
         ..addOval(
@@ -286,7 +242,6 @@ class _MapPageState extends ConsumerState<MapPage> {
         ),
     );
 
-    // 繪製照片到圓形區域
     canvas.drawImageRect(
       srcImage,
       Rect.fromLTWH(
@@ -295,84 +250,7 @@ class _MapPageState extends ConsumerState<MapPage> {
       Paint(),
     );
 
-    final img =
-        await recorder.endRecording().toImage(pixel, pixel);
-    final data = await img.toByteData(format: ui.ImageByteFormat.png);
-
-    // ignore: deprecated_member_use — bytes() API 在 ^2.10.0 尚未穩定，fromBytes 仍可用
-    return BitmapDescriptor.fromBytes(
-      data!.buffer.asUint8List(),
-      size: Size(logical.toDouble(), logical.toDouble()),
-    );
-  }
-
-  /// 建立聚合數字圓圈 BitmapDescriptor（藍底白字，大小隨數量增加）
-  Future<BitmapDescriptor> _buildClusterBitmap(int count, int tier) async {
-    // 標籤文字與邏輯尺寸
-    final String label;
-    final int logical;
-    if (tier >= 100) {
-      label = '100+';
-      logical = 80;
-    } else if (tier >= 50) {
-      label = '50+';
-      logical = 72;
-    } else if (tier >= 30) {
-      label = '30+';
-      logical = 64;
-    } else if (tier >= 10) {
-      label = '10+';
-      logical = 56;
-    } else {
-      label = '$count'; // 2–9：顯示實際數字
-      logical = 56;
-    }
-
-    final int pixel = logical * 2;
-    final double cx = pixel / 2;
-
-    final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(recorder);
-
-    // 深藍底色
-    canvas.drawCircle(
-      Offset(cx, cx),
-      cx - 3,
-      Paint()..color = const Color(0xFF1565C0), // blue[800]
-    );
-
-    // 淺藍外圈（視覺層次感）
-    canvas.drawCircle(
-      Offset(cx, cx),
-      cx,
-      Paint()
-        ..color = const Color(0xFF42A5F5) // blue[400]
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4,
-    );
-
-    // 白色數字文字（使用 dart:ui ParagraphBuilder）
-    final paragraphBuilder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        textAlign: TextAlign.center,
-        fontWeight: ui.FontWeight.w700,
-        fontSize: pixel * 0.27,
-      ),
-    )
-      ..pushStyle(ui.TextStyle(color: const ui.Color(0xFFFFFFFF)))
-      ..addText(label);
-
-    final paragraph = paragraphBuilder.build()
-      ..layout(ui.ParagraphConstraints(width: pixel.toDouble()));
-
-    // 垂直置中
-    canvas.drawParagraph(
-      paragraph,
-      Offset(0, (pixel - paragraph.height) / 2),
-    );
-
-    final img =
-        await recorder.endRecording().toImage(pixel, pixel);
+    final img = await recorder.endRecording().toImage(pixel, pixel);
     final data = await img.toByteData(format: ui.ImageByteFormat.png);
 
     // ignore: deprecated_member_use
@@ -384,7 +262,6 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   // ── 標記互動事件 ──────────────────────────────────────────────────────────
 
-  /// 點擊個別標記 → 底部資訊卡片
   void _onMarkerTap(MarkerEntity entity) {
     showModalBottomSheet<void>(
       context: context,
@@ -401,30 +278,6 @@ class _MapPageState extends ConsumerState<MapPage> {
                 builder: (_) => MarkerDetailPage(marker: entity)),
           );
         },
-      ),
-    );
-  }
-
-  /// 點擊聚合圓圈 → 縮放到群組 LatLngBounds
-  void _onClusterTap(cm.Cluster<_MapItem> cluster) {
-    final lats = cluster.items.map((i) => i.entity.latitude).toList();
-    final lngs = cluster.items.map((i) => i.entity.longitude).toList();
-
-    final sw = LatLng(lats.reduce(min), lngs.reduce(min));
-    final ne = LatLng(lats.reduce(max), lngs.reduce(max));
-
-    // 所有點在同一位置時直接放大到街道層級
-    if (sw.latitude == ne.latitude && sw.longitude == ne.longitude) {
-      _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(cluster.location, 16),
-      );
-      return;
-    }
-
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(southwest: sw, northeast: ne),
-        64, // padding（dp）
       ),
     );
   }
@@ -448,7 +301,7 @@ class _MapPageState extends ConsumerState<MapPage> {
             _filterCountries = countries;
             _filterMinRating = rating;
           });
-          _refreshCluster();
+          _refreshMarkers();
         },
       ),
     );
@@ -458,22 +311,19 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 監聽資料變化，自動刷新 ClusterManager
     ref.listen<AsyncValue<List<MarkerEntity>>>(
       mapMarkersProvider,
       (_, next) => next.whenData((markers) {
         _allMarkers = markers;
-        _refreshCluster();
+        _refreshMarkers();
       }),
     );
 
-    // 初次載入時同步讀取（避免 ref.listen 錯過第一次 emit）
     ref.watch(mapMarkersProvider).whenData((markers) {
       if (_allMarkers.isEmpty && markers.isNotEmpty) {
         _allMarkers = markers;
-        // 用 addPostFrameCallback 避免在 build 中呼叫 setState
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _refreshCluster();
+          if (mounted) _refreshMarkers();
         });
       }
     });
@@ -481,17 +331,17 @@ class _MapPageState extends ConsumerState<MapPage> {
     final hasFilter =
         _filterCountries.isNotEmpty || _filterMinRating != null;
 
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
-      // ── AppBar ──────────────────────────────────────────────────────────
       appBar: AppBar(
-        title: const Text('地圖總覽'),
+        title: Text(l10n.mapPageTitle),
         actions: [
-          // 篩選按鈕（有篩選條件時顯示 Badge 提示）
           Stack(
             alignment: Alignment.center,
             children: [
               IconButton(
-                tooltip: '篩選顯示標記',
+                tooltip: l10n.mapFilterTooltip,
                 icon: const Icon(Icons.filter_list),
                 onPressed: _showFilterSheet,
               ),
@@ -512,8 +362,6 @@ class _MapPageState extends ConsumerState<MapPage> {
           ),
         ],
       ),
-
-      // ── 地圖主體 ─────────────────────────────────────────────────────────
       body: Stack(
         children: [
           GoogleMap(
@@ -522,13 +370,11 @@ class _MapPageState extends ConsumerState<MapPage> {
             myLocationEnabled: _locationEnabled,
             myLocationButtonEnabled: _locationEnabled,
             zoomControlsEnabled: false,
+            clusterManagers: {_clusterManager},
             markers: _markers,
             onMapCreated: _onMapCreated,
-            onCameraMove: _onCameraMove,
-            onCameraIdle: _onCameraIdle,
           ),
 
-          // 資料載入中時顯示頂部進度條
           if (ref.watch(mapMarkersProvider).isLoading)
             const Positioned(
               top: 0,
@@ -537,7 +383,6 @@ class _MapPageState extends ConsumerState<MapPage> {
               child: LinearProgressIndicator(),
             ),
 
-          // 有篩選條件時顯示提示 Chip
           if (hasFilter)
             Positioned(
               top: 12,
@@ -552,7 +397,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                       _filterCountries = {};
                       _filterMinRating = null;
                     });
-                    _refreshCluster();
+                    _refreshMarkers();
                   },
                 ),
               ),
@@ -563,63 +408,8 @@ class _MapPageState extends ConsumerState<MapPage> {
   }
 }
 
-// ── ClusterItem 包裝器 ─────────────────────────────────────────────────────────
-
-/// 將 MarkerEntity 包裝為 ClusterManager 所需的 ClusterItem
-class _MapItem implements cm.ClusterItem {
-  const _MapItem(this.entity);
-
-  final MarkerEntity entity;
-
-  @override
-  LatLng get location => LatLng(entity.latitude, entity.longitude);
-
-  /// 標準 Geohash 編碼（precision 12），供 ClusterManager 空間索引使用
-  @override
-  String get geohash {
-    const base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
-    final lat = entity.latitude;
-    final lng = entity.longitude;
-    double minLat = -90, maxLat = 90;
-    double minLng = -180, maxLng = 180;
-    final buf = StringBuffer();
-    var evenBit = true;
-    var hashVal = 0;
-    var bits = 0;
-    while (buf.length < 12) {
-      if (evenBit) {
-        final mid = (minLng + maxLng) / 2;
-        if (lng >= mid) {
-          hashVal = (hashVal << 1) + 1;
-          minLng = mid;
-        } else {
-          hashVal = hashVal << 1;
-          maxLng = mid;
-        }
-      } else {
-        final mid = (minLat + maxLat) / 2;
-        if (lat >= mid) {
-          hashVal = (hashVal << 1) + 1;
-          minLat = mid;
-        } else {
-          hashVal = hashVal << 1;
-          maxLat = mid;
-        }
-      }
-      evenBit = !evenBit;
-      if (++bits == 5) {
-        buf.write(base32[hashVal]);
-        bits = 0;
-        hashVal = 0;
-      }
-    }
-    return buf.toString();
-  }
-}
-
 // ── 地標資訊底部卡片 ───────────────────────────────────────────────────────────
 
-/// 點擊地圖 Marker 後顯示的底部卡片（高度 120，含縮圖、標題、評分）
 class _MarkerInfoCard extends StatelessWidget {
   const _MarkerInfoCard({
     required this.entity,
@@ -627,8 +417,6 @@ class _MarkerInfoCard extends StatelessWidget {
   });
 
   final MarkerEntity entity;
-
-  /// 點擊卡片整列後進入詳情頁的回呼
   final VoidCallback onNavigate;
 
   @override
@@ -643,7 +431,6 @@ class _MarkerInfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Row(
           children: [
-            // 縮圖（有照片顯示 File image，無照片顯示佔位圖示）
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: SizedBox(
@@ -661,13 +448,11 @@ class _MarkerInfoCard extends StatelessWidget {
             ),
             const SizedBox(width: 14),
 
-            // 文字資訊
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 標題
                   Text(
                     entity.title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -677,7 +462,6 @@ class _MarkerInfoCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  // 國家
                   Text(
                     entity.country,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -687,7 +471,6 @@ class _MarkerInfoCard extends StatelessWidget {
                         ),
                   ),
                   const SizedBox(height: 6),
-                  // 星號評分
                   Row(
                     children: List.generate(5, (i) {
                       return Icon(
@@ -705,7 +488,6 @@ class _MarkerInfoCard extends StatelessWidget {
               ),
             ),
 
-            // 進入詳情頁箭頭
             Icon(
               Icons.chevron_right,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -728,7 +510,6 @@ class _MarkerInfoCard extends StatelessWidget {
 
 // ── 篩選 BottomSheet ────────────────────────────────────────────────────────────
 
-/// 篩選面板：國家多選 CheckboxListTile + 最低評分 SimpleDialogOption
 class _FilterSheet extends StatefulWidget {
   const _FilterSheet({
     required this.allMarkers,
@@ -753,14 +534,13 @@ class _FilterSheetState extends State<_FilterSheet> {
   @override
   void initState() {
     super.initState();
-    // 以目前篩選條件初始化（取副本，避免直接修改外部狀態）
     _countries = Set<String>.from(widget.selectedCountries);
     _minRating = widget.minRating;
   }
 
   @override
   Widget build(BuildContext context) {
-    // 從所有地標取出不重複國家清單（排序後展示）
+    final l10n = AppLocalizations.of(context);
     final allCountries = widget.allMarkers
         .map((m) => m.country)
         .toSet()
@@ -774,7 +554,6 @@ class _FilterSheetState extends State<_FilterSheet> {
       expand: false,
       builder: (_, scrollController) => Column(
         children: [
-          // 拖拉把手
           Container(
             width: 36,
             height: 4,
@@ -785,40 +564,36 @@ class _FilterSheetState extends State<_FilterSheet> {
             ),
           ),
 
-          // 標題列
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Row(
               children: [
                 Text(
-                  '篩選顯示條件',
+                  l10n.mapFilterTitle,
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
-                // 重置按鈕
                 TextButton(
                   onPressed: () => setState(() {
                     _countries = {};
                     _minRating = null;
                   }),
-                  child: const Text('重置'),
+                  child: Text(l10n.resetFilter),
                 ),
               ],
             ),
           ),
           const Divider(height: 1),
 
-          // 捲動內容
           Expanded(
             child: ListView(
               controller: scrollController,
               children: [
-                // ── 最低評分 ──────────────────────────────────────────────
                 _SheetSection(
-                  title: '最低評分',
+                  title: l10n.filterMinRating,
                   child: Wrap(
                     spacing: 8,
                     children: List.generate(5, (i) {
@@ -838,7 +613,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                                   : Colors.amber,
                             ),
                             const SizedBox(width: 2),
-                            Text('$v 以上'),
+                            Text(l10n.starsAbove(v)),
                           ],
                         ),
                         selected: isSelected,
@@ -853,10 +628,9 @@ class _FilterSheetState extends State<_FilterSheet> {
                   ),
                 ),
 
-                // ── 國家多選 ──────────────────────────────────────────────
                 if (allCountries.isNotEmpty)
                   _SheetSection(
-                    title: '國家（可多選）',
+                    title: l10n.mapCountryMultiSelect,
                     child: Column(
                       children: allCountries.map((c) {
                         return CheckboxListTile(
@@ -879,7 +653,6 @@ class _FilterSheetState extends State<_FilterSheet> {
             ),
           ),
 
-          // ── 確認按鈕 ──────────────────────────────────────────────────────
           Padding(
             padding: EdgeInsets.fromLTRB(
               16,
@@ -895,7 +668,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text('套用篩選'),
+              child: Text(l10n.applyFilter),
             ),
           ),
         ],
@@ -937,7 +710,6 @@ class _SheetSection extends StatelessWidget {
 
 // ── 篩選狀態浮動 Badge ─────────────────────────────────────────────────────────
 
-/// 有篩選條件時懸浮於地圖頂部的提示 Chip，點擊可一鍵清除
 class _FilterBadge extends StatelessWidget {
   const _FilterBadge({
     required this.countries,
@@ -951,9 +723,11 @@ class _FilterBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final parts = <String>[];
-    if (countries.isNotEmpty) parts.add('${countries.length} 個國家');
-    if (minRating != null) parts.add('$minRating★ 以上');
+    if (countries.isNotEmpty) parts.add(l10n.mapCountriesCount(countries.length));
+    if (minRating != null) parts.add(l10n.starsAbove(minRating!));
+    final separator = l10n.isEn ? ', ' : '、';
 
     return Material(
       color: Colors.transparent,
@@ -976,7 +750,7 @@ class _FilterBadge extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              '篩選中：${parts.join('、')}',
+              l10n.mapFilterActive(parts.join(separator)),
               style: TextStyle(
                 fontSize: 12,
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -984,7 +758,6 @@ class _FilterBadge extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            // 一鍵清除按鈕
             GestureDetector(
               onTap: onClear,
               child: Icon(

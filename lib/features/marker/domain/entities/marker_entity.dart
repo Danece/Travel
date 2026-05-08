@@ -15,5 +15,6 @@ sealed class MarkerEntity with _$MarkerEntity {
     required int rating,
     @Default('') String note,
     @Default([]) List<String> photoPaths,
+    @Default('attraction') String category,
   }) = _MarkerEntity;
 }

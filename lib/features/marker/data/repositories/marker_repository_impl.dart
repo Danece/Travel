@@ -26,6 +26,7 @@ class MarkerRepositoryImpl implements MarkerRepository {
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
+    List<String>? categories,
   }) async {
     final models = await _datasource.search(
       title: title,
@@ -33,6 +34,7 @@ class MarkerRepositoryImpl implements MarkerRepository {
       minRating: minRating,
       startDate: startDate,
       endDate: endDate,
+      categories: categories,
     );
     return models.map((m) => m.toEntity()).toList();
   }

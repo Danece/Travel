@@ -40,6 +40,7 @@ class MarkerNotifier extends _$MarkerNotifier {
     DateTime? createdAt,
     String note = '',
     List<String> photoPaths = const [],
+    String category = 'attraction',
   }) async {
     final repo = ref.read(markerRepositoryProvider);
     final marker = MarkerEntity(
@@ -52,6 +53,7 @@ class MarkerNotifier extends _$MarkerNotifier {
       rating: rating,
       note: note,
       photoPaths: photoPaths,
+      category: category,
     );
     await SaveMarker(repo).call(marker);
     ref.invalidateSelf();
@@ -75,6 +77,7 @@ class MarkerNotifier extends _$MarkerNotifier {
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
+    List<String>? categories,
   }) async {
     final repo = ref.read(markerRepositoryProvider);
     state = const AsyncLoading();
@@ -85,6 +88,7 @@ class MarkerNotifier extends _$MarkerNotifier {
         minRating: minRating,
         startDate: startDate,
         endDate: endDate,
+        categories: categories,
       ),
     );
   }

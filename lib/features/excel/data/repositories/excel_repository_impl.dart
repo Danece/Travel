@@ -1,11 +1,16 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../marker/domain/entities/marker_category.dart';
 import '../../../marker/domain/entities/marker_entity.dart';
 import '../../../marker/domain/repositories/marker_repository.dart';
 import '../../domain/entities/import_result.dart';
@@ -21,6 +26,7 @@ const _colLng = 5;
 const _colRating = 6;
 const _colNote = 7;
 const _colPhotoCount = 8;
+const _colCategory = 9;
 
 /// Excel 工作表名稱
 const _sheetName = 'TravelMark';
@@ -28,8 +34,9 @@ const _sheetName = 'TravelMark';
 class ExcelRepositoryImpl implements ExcelRepository {
   const ExcelRepositoryImpl(this._markerRepository);
 
-  /// 注入 MarkerRepository，用於匯入時批量寫入資料庫
   final MarkerRepository _markerRepository;
+
+  static const _channel = MethodChannel('com.travelmark.app/downloads');
 
   // ══════════════════════════════════════════════════════════════════════════
   // 匯出
@@ -38,29 +45,34 @@ class ExcelRepositoryImpl implements ExcelRepository {
   @override
   Future<String> exportMarkers(List<MarkerEntity> markers) async {
     final excel = Excel.createExcel();
-
-    // 預設工作表名稱為 'Sheet1'，先刪除再以正確名稱建立
     excel.delete('Sheet1');
     final sheet = excel[_sheetName];
-
-    // 寫入標題列（加粗、藍底白字）
     _writeHeaderRow(sheet);
-
-    // 從第 1 列（index 1）依序寫入每筆地標資料
     for (var i = 0; i < markers.length; i++) {
       _writeDataRow(sheet, rowIndex: i + 1, marker: markers[i]);
     }
 
-    // 計算完整儲存路徑
-    final savePath = await _buildSavePath();
-
-    // 編碼並寫入磁碟
     final encoded = excel.encode();
-    if (encoded == null) {
-      throw const LocalFailure('Excel 編碼失敗，請重試');
-    }
-    await File(savePath).writeAsBytes(encoded);
+    if (encoded == null) throw const LocalFailure('Excel 編碼失敗，請重試');
 
+    final filename = _buildFilename();
+
+    // Android：透過 MethodChannel 寫入公開 Downloads 資料夾
+    if (Platform.isAndroid) {
+      try {
+        final path = await _channel.invokeMethod<String>(
+          'saveToDownloads',
+          {'bytes': Uint8List.fromList(encoded), 'filename': filename},
+        );
+        return path ?? filename;
+      } catch (_) {
+        // 發生錯誤時退回 App 文件目錄
+      }
+    }
+
+    // 其他平台或 Android 備援：寫入 App 文件目錄
+    final savePath = await _buildSavePath(filename);
+    await File(savePath).writeAsBytes(encoded);
     return savePath;
   }
 
@@ -68,7 +80,7 @@ class ExcelRepositoryImpl implements ExcelRepository {
   void _writeHeaderRow(Sheet sheet) {
     const headers = [
       'ID', '標題', '國家', '建立日期',
-      '緯度', '經度', '評分', '心得內容', '照片數量',
+      '緯度', '經度', '評分', '心得內容', '照片數量', '種類',
     ];
 
     for (var col = 0; col < headers.length; col++) {
@@ -114,22 +126,12 @@ class ExcelRepositoryImpl implements ExcelRepository {
     put(_colLng, DoubleCellValue(marker.longitude));
     put(_colRating, IntCellValue(marker.rating));
     put(_colNote, TextCellValue(marker.note));
-    // 照片欄位：僅存數量（路徑不匯出，保護隱私且跨裝置無意義）
     put(_colPhotoCount, IntCellValue(marker.photoPaths.length));
+    put(_colCategory, TextCellValue(marker.category));
   }
 
-  /// 決定儲存路徑：Android 嘗試 Downloads，iOS/其他退回 Documents
-  Future<String> _buildSavePath() async {
-    Directory dir;
-    try {
-      dir = (await getDownloadsDirectory()) ??
-          await getApplicationDocumentsDirectory();
-    } catch (_) {
-      dir = await getApplicationDocumentsDirectory();
-    }
-    if (!dir.existsSync()) await dir.create(recursive: true);
-
-    // 檔名格式：TravelMark_Export_yyyyMMdd_HHmmss.xlsx
+  /// 檔名格式：TravelMark_Export_yyyyMMdd_HHmmss.xlsx
+  String _buildFilename() {
     final now = DateTime.now();
     final stamp =
         '${now.year}'
@@ -139,8 +141,20 @@ class ExcelRepositoryImpl implements ExcelRepository {
         '${now.hour.toString().padLeft(2, '0')}'
         '${now.minute.toString().padLeft(2, '0')}'
         '${now.second.toString().padLeft(2, '0')}';
+    return 'TravelMark_Export_$stamp.xlsx';
+  }
 
-    return p.join(dir.path, 'TravelMark_Export_$stamp.xlsx');
+  /// 非 Android 平台的備援儲存路徑（App Documents 目錄）
+  Future<String> _buildSavePath(String filename) async {
+    Directory dir;
+    try {
+      dir = (await getDownloadsDirectory()) ??
+          await getApplicationDocumentsDirectory();
+    } catch (_) {
+      dir = await getApplicationDocumentsDirectory();
+    }
+    if (!dir.existsSync()) await dir.create(recursive: true);
+    return p.join(dir.path, filename);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -149,13 +163,20 @@ class ExcelRepositoryImpl implements ExcelRepository {
 
   @override
   Future<ImportResult> importMarkersFromExcel(String filePath) async {
-    final bytes = await File(filePath).readAsBytes();
-    final excel = Excel.decodeBytes(bytes);
+    final rawBytes = await File(filePath).readAsBytes();
+    final bytes = _fixInlineStrCells(rawBytes);
+
+    late Excel excel;
+    try {
+      excel = Excel.decodeBytes(bytes);
+    } catch (e) {
+      throw LocalFailure('無法解析 Excel 檔案，請確認格式正確（支援 .xlsx / .xls）：${e.runtimeType}');
+    }
 
     // 優先使用 TravelMark 工作表，找不到則取第一個工作表
     final sheet = excel.tables[_sheetName] ?? excel.tables.values.firstOrNull;
     if (sheet == null) {
-      throw const LocalFailure('找不到可讀取的工作表');
+      throw const LocalFailure('找不到可讀取的工作表，請確認檔案內有資料');
     }
 
     int successCount = 0;
@@ -165,16 +186,16 @@ class ExcelRepositoryImpl implements ExcelRepository {
 
     // 從第 1 列（index 1）開始，跳過第 0 列標題
     for (var rowIdx = 1; rowIdx < sheet.maxRows; rowIdx++) {
-      final row = sheet.row(rowIdx);
-
-      // 全空白列跳過
-      final isBlank = row.every((c) => c == null || c.value == null);
-      if (isBlank) {
-        skippedCount++;
-        continue;
-      }
-
       try {
+        final row = sheet.row(rowIdx);
+
+        // 全空白列跳過
+        final isBlank = row.every((c) => c == null || c.value == null);
+        if (isBlank) {
+          skippedCount++;
+          continue;
+        }
+
         final marker = _parseRow(row, rowIdx);
         await _markerRepository.insertMarker(marker);
         successCount++;
@@ -193,6 +214,41 @@ class ExcelRepositoryImpl implements ExcelRepository {
       failedRows: failedRows,
       failedMessages: failedMessages,
     );
+  }
+
+  /// 修復 xlsx 中空的 inlineStr 儲存格（`<c t="inlineStr"></c>`），
+  /// 這類儲存格缺少 `<is><t>` 子節點，會導致 excel 套件的 `.first` 拋出例外。
+  List<int> _fixInlineStrCells(List<int> bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      var modified = false;
+      final newArchive = Archive();
+
+      for (final file in archive) {
+        if (file.isFile &&
+            file.name.startsWith('xl/worksheets/') &&
+            file.name.endsWith('.xml')) {
+          final content = utf8.decode(file.content as List<int>, allowMalformed: true);
+          // 空的 inlineStr 格：`t="inlineStr"></c>` → 補上 `<is><t></t></is>`
+          final fixed = content.replaceAll(
+            't="inlineStr"></c>',
+            't="inlineStr"><is><t></t></is></c>',
+          );
+          if (fixed != content) {
+            modified = true;
+            final fixedBytes = utf8.encode(fixed);
+            newArchive.addFile(ArchiveFile(file.name, fixedBytes.length, fixedBytes));
+            continue;
+          }
+        }
+        newArchive.addFile(file);
+      }
+
+      if (!modified) return bytes;
+      return ZipEncoder().encode(newArchive) ?? bytes;
+    } catch (_) {
+      return bytes;
+    }
   }
 
   /// 解析單列為 MarkerEntity；任何驗證失敗皆拋出 LocalFailure
@@ -258,6 +314,9 @@ class ExcelRepositoryImpl implements ExcelRepository {
         ? (DateTime.tryParse(dateStr) ?? DateTime.now())
         : DateTime.now();
 
+    final categoryStr = str(_colCategory) ?? 'attraction';
+    final category = MarkerCategory.fromString(categoryStr).name;
+
     return MarkerEntity(
       id: id,
       title: title,
@@ -267,7 +326,8 @@ class ExcelRepositoryImpl implements ExcelRepository {
       longitude: lng,
       rating: rating,
       note: str(_colNote) ?? '',
-      photoPaths: const [], // 匯入時不含照片（路徑跨裝置無意義）
+      photoPaths: const [],
+      category: category,
     );
   }
 }

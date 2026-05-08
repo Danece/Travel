@@ -60,6 +60,21 @@ class SettingsNotifier extends _$SettingsNotifier {
   }
 }
 
+// ── ColorVariantNotifier ──────────────────────────────────────────────────────
+//
+// 管理「色彩方案」設定（'default' | 'colorful'），獨立於 ThemeMode。
+
+@riverpod
+class ColorVariantNotifier extends _$ColorVariantNotifier {
+  @override
+  Future<String> build() => PreferencesService.instance.getColorVariant();
+
+  Future<void> setColorVariant(String variant) async {
+    await PreferencesService.instance.setColorVariant(variant);
+    state = AsyncData(variant);
+  }
+}
+
 // ── packageInfoProvider ───────────────────────────────────────────────────────
 //
 // 非同步讀取 App 版本資訊（版本號、Build 號）。

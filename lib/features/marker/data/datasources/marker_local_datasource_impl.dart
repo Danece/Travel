@@ -41,6 +41,7 @@ class MarkerLocalDatasourceImpl implements MarkerLocalDatasource {
     int? minRating,
     DateTime? startDate,
     DateTime? endDate,
+    List<String>? categories,
   }) async {
     final db = await _db;
 
@@ -67,6 +68,11 @@ class MarkerLocalDatasourceImpl implements MarkerLocalDatasource {
     if (endDate != null) {
       conditions.add('${MarkerTable.colCreatedAt} <= ?');
       args.add(endDate.millisecondsSinceEpoch);
+    }
+    if (categories != null && categories.isNotEmpty) {
+      final placeholders = List.filled(categories.length, '?').join(',');
+      conditions.add('${MarkerTable.colCategory} IN ($placeholders)');
+      args.addAll(categories);
     }
 
     final rows = await db.query(

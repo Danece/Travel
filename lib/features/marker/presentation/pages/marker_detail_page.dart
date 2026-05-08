@@ -8,11 +8,12 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/l10n/app_localizations.dart';
+import '../../domain/entities/marker_category.dart';
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
 import 'map_picker_page.dart';
 
-// ── 常見國家清單（與 create_marker_page.dart 相同，獨立宣告避免跨檔案耦合）────
 const List<String> _kCountries = [
   'Taiwan', 'Japan', 'South Korea', 'China', 'Hong Kong', 'Macau', 'Mongolia',
   'Thailand', 'Vietnam', 'Singapore', 'Malaysia', 'Indonesia',
@@ -28,22 +29,13 @@ const List<String> _kCountries = [
   'Egypt', 'Morocco',
 ];
 
-const List<String> _kRatingLabels = ['很差', '普通', '不錯', '推薦', '必去！'];
 const int _kMaxPhotos = 10;
 
 // ── 地標詳情頁 ────────────────────────────────────────────────────────────────
-//
-// 頁面接收一個 MarkerEntity，分三個視覺區域呈現：
-//   1. 頂部照片 PageView（可左右滑動，顯示頁碼；長按可移除單張）
-//   2. 捲動式基本資訊（標題、國家、日期、評分、座標、心得）
-//   3. 底部固定「新增照片」按鈕列
-//
-// AppBar 右側有 編輯（pencil）與 刪除（trash）兩個 IconButton。
 
 class MarkerDetailPage extends ConsumerStatefulWidget {
   const MarkerDetailPage({super.key, required this.marker});
 
-  /// 進入頁面時傳入的初始地標資料
   final MarkerEntity marker;
 
   @override
@@ -51,20 +43,11 @@ class MarkerDetailPage extends ConsumerStatefulWidget {
 }
 
 class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
-  // 以 local state 持有最新 marker，編輯或新增照片後即時刷新 UI
   late MarkerEntity _marker;
-
-  // 照片 PageView 的頁碼控制器
   final _pageController = PageController();
   int _photoIndex = 0;
-
-  // 照片選取器（整頁共用）
   final _picker = ImagePicker();
-
-  // 是否正在執行非同步操作（新增照片 / 刪除地標）
   bool _isBusy = false;
-
-  // ── 生命週期 ───────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -78,18 +61,11 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
     super.dispose();
   }
 
-  // ── 工具方法 ───────────────────────────────────────────────────────────────
-
-  /// 將 DateTime 格式化為 yyyy/MM/dd（不依賴 intl 套件）
   String _fmtDate(DateTime d) =>
       '${d.year}/'
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.day.toString().padLeft(2, '0')}';
 
-  /// 將 XFile 複製到 App Documents/photos/ 目錄，回傳持久路徑
-  ///
-  /// image_picker 回傳的暫存路徑在 App 重啟後可能失效，
-  /// 因此需複製到 getApplicationDocumentsDirectory() 確保長期存取。
   Future<String> _copyToDocuments(XFile xfile) async {
     final docsDir = await getApplicationDocumentsDirectory();
     final photosDir = Directory(p.join(docsDir.path, 'photos'));
@@ -99,16 +75,12 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
     final ext = p.extension(xfile.name).isNotEmpty
         ? p.extension(xfile.name)
         : '.jpg';
-    final dest = p.join(photosDir.path,
-        '${DateTime.now().millisecondsSinceEpoch}$ext');
+    final dest = p.join(
+        photosDir.path, '${DateTime.now().millisecondsSinceEpoch}$ext');
     await File(xfile.path).copy(dest);
     return dest;
   }
 
-  // ── 事件：座標開啟 Google Maps ─────────────────────────────────────────────
-
-  /// 點擊座標列，以 geo: URI 開啟外部地圖 App；
-  /// 無地圖 App 時退回 Google Maps 網頁版
   Future<void> _openInMaps() async {
     final lat = _marker.latitude;
     final lng = _marker.longitude;
@@ -124,14 +96,12 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
     }
   }
 
-  // ── 事件：底部新增照片 ─────────────────────────────────────────────────────
-
-  /// 從相簿多選照片，複製後 append 到現有 photoPaths 並寫入資料庫
   Future<void> _addPhotos() async {
+    final l10n = AppLocalizations.of(context);
     final remaining = _kMaxPhotos - _marker.photoPaths.length;
     if (remaining <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('最多只能新增 $_kMaxPhotos 張照片')),
+        SnackBar(content: Text(l10n.maxPhotosReached(_kMaxPhotos))),
       );
       return;
     }
@@ -141,7 +111,6 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
 
     setState(() => _isBusy = true);
     try {
-      // 複製每張照片到文件資料夾，確保路徑持久
       final copied = <String>[];
       for (final xfile in files.take(remaining)) {
         copied.add(await _copyToDocuments(xfile));
@@ -157,7 +126,7 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
 
       if (files.length > remaining) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已達上限，僅新增前 $remaining 張')),
+          SnackBar(content: Text(l10n.onlyAddedFirst(remaining))),
         );
       }
     } finally {
@@ -165,23 +134,22 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
     }
   }
 
-  // ── 事件：移除單張照片 ─────────────────────────────────────────────────────
-
-  /// 長按縮圖後顯示確認對話框，確認後移除並更新資料庫
   Future<void> _removePhoto(int index) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('移除照片'),
-        content: const Text('確定要移除這張照片嗎？'),
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.removePhoto),
+        content: Text(l10n.removePhotoConfirm),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('移除', style: TextStyle(color: Colors.red)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.remove,
+                style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -194,7 +162,6 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
     if (!mounted) return;
     setState(() {
       _marker = updated;
-      // 頁碼超出範圍時退到最後一頁
       if (_photoIndex >= newPaths.length && _photoIndex > 0) {
         _photoIndex = newPaths.length - 1;
         _pageController.jumpToPage(_photoIndex);
@@ -202,9 +169,6 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
     });
   }
 
-  // ── 事件：進入編輯頁 ───────────────────────────────────────────────────────
-
-  /// 推入 EditMarkerPage，儲存成功後接收回傳的更新 entity 並刷新詳情頁
   Future<void> _goToEdit() async {
     final result = await Navigator.of(context).push<MarkerEntity>(
       MaterialPageRoute(
@@ -216,26 +180,24 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
     }
   }
 
-  // ── 事件：刪除地標 ─────────────────────────────────────────────────────────
-
-  /// 顯示確認對話框，確認後呼叫 notifier.remove()，完成後返回列表頁
   Future<void> _deleteMarker() async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.delete_forever_outlined,
             size: 40, color: Colors.red),
-        title: const Text('刪除地標'),
-        content: Text('確定要刪除「${_marker.title}」嗎？\n此操作無法復原。'),
+        title: Text(l10n.deleteMarkerTitle),
+        content: Text(l10n.deleteMarkerContent(_marker.title)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('刪除'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -247,70 +209,61 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  // ── 建構 UI ────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final photos = _marker.photoPaths;
 
     return Scaffold(
-      // ── AppBar ──────────────────────────────────────────────────────────
       appBar: AppBar(
         title: Text(_marker.title, overflow: TextOverflow.ellipsis),
         actions: [
-          // 編輯按鈕：pencil icon
           IconButton(
-            tooltip: '編輯',
+            tooltip: l10n.editTooltip,
             icon: const Icon(Icons.edit_outlined),
             onPressed: _isBusy ? null : _goToEdit,
           ),
-          // 刪除按鈕：trash icon，紅色以強調危險操作
           IconButton(
-            tooltip: '刪除',
+            tooltip: l10n.deleteTooltip,
             icon: const Icon(Icons.delete_outline),
             color: Colors.red[400],
             onPressed: _isBusy ? null : _deleteMarker,
           ),
         ],
       ),
-
-      // ── 主體 ────────────────────────────────────────────────────────────
       body: Column(
         children: [
-          // 可捲動區域（照片 + 資訊）
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 1. 頂部照片 PageView
                   _PhotoSection(
                     photos: photos,
                     pageController: _pageController,
                     currentIndex: _photoIndex,
                     onPageChanged: (i) => setState(() => _photoIndex = i),
                     onLongPressPhoto: _removePhoto,
+                    l10n: l10n,
                   ),
-
-                  // 2. 基本資訊區塊
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                     child: _InfoSection(
                       marker: _marker,
                       formattedDate: _fmtDate(_marker.createdAt),
                       onTapCoords: _openInMaps,
+                      l10n: l10n,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-
-          // 3. 底部「新增照片」按鈕列（固定在底部，不隨頁面捲動）
           _AddPhotoBar(
             isBusy: _isBusy,
             photoCount: photos.length,
             onAdd: _addPhotos,
+            l10n: l10n,
           ),
         ],
       ),
@@ -320,7 +273,6 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
 
 // ── 1. 照片區塊 ────────────────────────────────────────────────────────────────
 
-/// 頂部照片 PageView，長按可移除單張照片；無照片時顯示佔位插圖
 class _PhotoSection extends StatelessWidget {
   const _PhotoSection({
     required this.photos,
@@ -328,19 +280,18 @@ class _PhotoSection extends StatelessWidget {
     required this.currentIndex,
     required this.onPageChanged,
     required this.onLongPressPhoto,
+    required this.l10n,
   });
 
   final List<String> photos;
   final PageController pageController;
   final int currentIndex;
   final ValueChanged<int> onPageChanged;
-
-  /// 長按後由外層處理移除邏輯
   final ValueChanged<int> onLongPressPhoto;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
-    // 無照片：顯示佔位插圖
     if (photos.isEmpty) {
       return Container(
         height: 220,
@@ -354,7 +305,7 @@ class _PhotoSection extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(height: 10),
               Text(
-                '尚無照片',
+                l10n.noPhotos,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -369,7 +320,6 @@ class _PhotoSection extends StatelessWidget {
       height: 280,
       child: Stack(
         children: [
-          // ── PageView 主體 ────────────────────────────────────────────────
           PageView.builder(
             controller: pageController,
             itemCount: photos.length,
@@ -386,8 +336,6 @@ class _PhotoSection extends StatelessWidget {
                   : _brokenImage(),
             ),
           ),
-
-          // ── 右下角頁碼標籤 「n / total」──────────────────────────────────
           Positioned(
             right: 12,
             bottom: 12,
@@ -408,8 +356,6 @@ class _PhotoSection extends StatelessWidget {
               ),
             ),
           ),
-
-          // ── 底部漸層 + 操作提示（長按刪除）──────────────────────────────
           Positioned(
             left: 0,
             right: 0,
@@ -426,9 +372,9 @@ class _PhotoSection extends StatelessWidget {
                 ),
                 alignment: Alignment.bottomCenter,
                 padding: const EdgeInsets.only(bottom: 8),
-                child: const Text(
-                  '長按照片可移除',
-                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                child: Text(
+                  l10n.longPressHint,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
                 ),
               ),
             ),
@@ -447,26 +393,24 @@ class _PhotoSection extends StatelessWidget {
 
 // ── 2. 資訊區塊 ────────────────────────────────────────────────────────────────
 
-/// 標題、國家、日期、評分、座標（可點擊開啟地圖）、心得 的完整資訊區塊
 class _InfoSection extends StatelessWidget {
   const _InfoSection({
     required this.marker,
     required this.formattedDate,
     required this.onTapCoords,
+    required this.l10n,
   });
 
   final MarkerEntity marker;
   final String formattedDate;
-
-  /// 點擊座標列後的回呼（開啟外部地圖）
   final VoidCallback onTapCoords;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 標題（大字）
         Text(
           marker.title,
           style: Theme.of(context)
@@ -476,29 +420,31 @@ class _InfoSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // 國家
         _InfoRow(
           icon: Icons.flag_outlined,
-          label: '國家',
+          label: l10n.countryLabel,
           value: marker.country,
         ),
-        // 日期
         _InfoRow(
           icon: Icons.calendar_today_outlined,
-          label: '日期',
+          label: l10n.dateLabel,
           value: formattedDate,
         ),
-        // 評分（用自訂 Widget 顯示星號）
+        _InfoRow(
+          icon: Icons.category_outlined,
+          label: l10n.categoryLabel,
+          value: MarkerCategory.fromString(marker.category)
+              .localizedDisplay(l10n.isEn),
+        ),
         _InfoRow(
           icon: Icons.star_rounded,
           iconColor: Colors.amber,
-          label: '評分',
+          label: l10n.ratingLabel,
           child: _StarDisplay(rating: marker.rating),
         ),
-        // 座標（點擊後開啟 Google Maps）
         _InfoRow(
           icon: Icons.location_on_outlined,
-          label: '座標',
+          label: l10n.coordsLabel,
           value: '${marker.latitude.toStringAsFixed(5)}, '
               '${marker.longitude.toStringAsFixed(5)}',
           onTap: onTapCoords,
@@ -509,10 +455,9 @@ class _InfoSection extends StatelessWidget {
           ),
         ),
 
-        // 心得區塊（有內容才顯示）
         if (marker.note.isNotEmpty) ...[
           const SizedBox(height: 20),
-          const _SectionLabel('旅遊心得'),
+          _SectionLabel(l10n.travelNotesSection),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
@@ -535,7 +480,6 @@ class _InfoSection extends StatelessWidget {
 
 // ── 通用小元件 ─────────────────────────────────────────────────────────────────
 
-/// 單列資訊（圖示 ＋ 標籤 ＋ 值），value 與 child 二擇一
 class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.icon,
@@ -561,11 +505,10 @@ class _InfoRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 左側圖示
             Icon(
               icon,
               size: 20,
@@ -573,11 +516,11 @@ class _InfoRow extends StatelessWidget {
                   Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 12),
-            // 固定寬度標籤（對齊各列）
             SizedBox(
-              width: 36,
+              width: 40,
               child: Text(
                 label,
+                textAlign: TextAlign.right,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context)
                           .colorScheme
@@ -585,22 +528,22 @@ class _InfoRow extends StatelessWidget {
                     ),
               ),
             ),
-            const SizedBox(width: 8),
-            // 值或自訂 Widget
+            const SizedBox(width: 12),
             Expanded(
               child: child ??
                   Text(
                     value!,
-                    style:
-                        Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              // 可點擊時顯示藍色底線提示
-                              color: onTap != null
-                                  ? Theme.of(context).colorScheme.primary
-                                  : null,
-                              decoration: onTap != null
-                                  ? TextDecoration.underline
-                                  : null,
-                            ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(
+                          color: onTap != null
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                          decoration: onTap != null
+                              ? TextDecoration.underline
+                              : null,
+                        ),
                   ),
             ),
             if (trailing != null) ...[
@@ -614,7 +557,6 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// 只讀星號列（1–5 顆星，filled / outline）
 class _StarDisplay extends StatelessWidget {
   const _StarDisplay({required this.rating});
   final int rating;
@@ -634,7 +576,6 @@ class _StarDisplay extends StatelessWidget {
   }
 }
 
-/// 小節標籤（粗體 + 左側色條）
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.title);
   final String title;
@@ -666,17 +607,18 @@ class _SectionLabel extends StatelessWidget {
 
 // ── 3. 底部新增照片按鈕列 ──────────────────────────────────────────────────────
 
-/// 固定底部的「新增照片」按鈕；達上限或執行中時停用
 class _AddPhotoBar extends StatelessWidget {
   const _AddPhotoBar({
     required this.isBusy,
     required this.photoCount,
     required this.onAdd,
+    required this.l10n,
   });
 
   final bool isBusy;
   final int photoCount;
   final VoidCallback onAdd;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
@@ -688,7 +630,10 @@ class _AddPhotoBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         boxShadow: const [
-          BoxShadow(blurRadius: 10, color: Colors.black12, offset: Offset(0, -3)),
+          BoxShadow(
+              blurRadius: 10,
+              color: Colors.black12,
+              offset: Offset(0, -3)),
         ],
       ),
       child: OutlinedButton.icon(
@@ -702,8 +647,8 @@ class _AddPhotoBar extends StatelessWidget {
             : const Icon(Icons.add_photo_alternate_outlined),
         label: Text(
           atLimit
-              ? '已達照片上限（$_kMaxPhotos 張）'
-              : '新增照片（$photoCount / $_kMaxPhotos）',
+              ? l10n.maxPhotosLabel(_kMaxPhotos)
+              : l10n.addPhotoCount(photoCount, _kMaxPhotos),
         ),
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(46),
@@ -718,15 +663,10 @@ class _AddPhotoBar extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 // EditMarkerPage
 // ══════════════════════════════════════════════════════════════════════════════
-//
-// 獨立的編輯頁面，接收現有 MarkerEntity 並預填所有欄位。
-// 儲存成功後呼叫 notifier.edit()，並透過 Navigator.pop(updated)
-// 將更新後的 entity 回傳給 MarkerDetailPage 即時刷新。
 
 class EditMarkerPage extends ConsumerStatefulWidget {
   const EditMarkerPage({super.key, required this.marker});
 
-  /// 要編輯的地標資料（預填到各欄位）
   final MarkerEntity marker;
 
   @override
@@ -736,7 +676,6 @@ class EditMarkerPage extends ConsumerStatefulWidget {
 class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
   final _formKey = GlobalKey<FormState>();
 
-  // 文字控制器以原始資料初始化
   late final TextEditingController _titleCtrl;
   late final TextEditingController _noteCtrl;
   late final TextEditingController _latCtrl;
@@ -746,10 +685,9 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
   late String? _country;
   late DateTime _date;
   late int _rating;
+  late MarkerCategory _category;
 
   bool _isSubmitting = false;
-
-  // ── 生命週期 ───────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -763,6 +701,7 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
     _dateCtrl = TextEditingController(text: _fmtDate(m.createdAt));
     _country = m.country;
     _rating = m.rating;
+    _category = MarkerCategory.fromString(m.category);
   }
 
   @override
@@ -775,24 +714,21 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
     super.dispose();
   }
 
-  // ── 工具方法 ───────────────────────────────────────────────────────────────
-
   String _fmtDate(DateTime d) =>
       '${d.year}/'
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.day.toString().padLeft(2, '0')}';
 
-  // ── 事件處理 ───────────────────────────────────────────────────────────────
-
   Future<void> _pickDate() async {
+    final l10n = AppLocalizations.of(context);
     final picked = await showDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
-      helpText: '選擇拜訪日期',
-      confirmText: '確認',
-      cancelText: '取消',
+      helpText: l10n.selectDate,
+      confirmText: l10n.confirm,
+      cancelText: l10n.cancel,
     );
     if (picked != null && mounted) {
       setState(() {
@@ -802,7 +738,6 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
     }
   }
 
-  /// 開啟 MapPickerPage（直接 import，無需橋接）
   Future<void> _openMapPicker() async {
     final result = await Navigator.of(context).push<LatLng>(
       MaterialPageRoute(builder: (_) => const MapPickerPage()),
@@ -815,14 +750,13 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
     }
   }
 
-  /// 驗證後呼叫 notifier.edit()，成功後 pop 並回傳更新後的 entity
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSubmitting = true);
     try {
-      // 照片路徑不在編輯頁修改，保留原始清單
       final updated = widget.marker.copyWith(
         title: _titleCtrl.text.trim(),
         country: _country!,
@@ -831,21 +765,21 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
         longitude: double.parse(_lngCtrl.text),
         rating: _rating,
         note: _noteCtrl.text.trim(),
+        category: _category.name,
       );
 
       await ref.read(markerNotifierProvider.notifier).edit(updated);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('地標已更新！')),
+          SnackBar(content: Text(l10n.markerUpdated)),
         );
-        // 回傳更新後的 entity，讓詳情頁即時刷新顯示
         Navigator.of(context).pop(updated);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('更新失敗：$e')),
+          SnackBar(content: Text(l10n.updateFailed(e.toString()))),
         );
       }
     } finally {
@@ -853,13 +787,13 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
     }
   }
 
-  // ── 建構 UI ────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('編輯地標'),
+        title: Text(l10n.editMarkerTitle),
         actions: [
           if (_isSubmitting)
             const Padding(
@@ -871,7 +805,7 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
               ),
             )
           else
-            TextButton(onPressed: _submit, child: const Text('儲存')),
+            TextButton(onPressed: _submit, child: Text(l10n.save)),
         ],
       ),
       body: Form(
@@ -881,55 +815,50 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── 基本資訊 ──────────────────────────────────────────────
-              const _EditHeader('基本資訊'),
+              _EditHeader(l10n.basicInfo),
 
-              // 標題
               TextFormField(
                 controller: _titleCtrl,
-                decoration: const InputDecoration(
-                  labelText: '標題 *',
-                  prefixIcon: Icon(Icons.title),
+                decoration: InputDecoration(
+                  labelText: l10n.titleField,
+                  prefixIcon: const Icon(Icons.title),
                 ),
                 maxLength: 100,
                 validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? '請輸入標題' : null,
+                    (v == null || v.trim().isEmpty) ? l10n.titleRequired : null,
               ),
               const SizedBox(height: 12),
 
-              // 國家下拉
               DropdownButtonFormField<String>(
                 initialValue: _country,
-                decoration: const InputDecoration(
-                  labelText: '國家 *',
-                  prefixIcon: Icon(Icons.flag_outlined),
+                decoration: InputDecoration(
+                  labelText: l10n.countryField,
+                  prefixIcon: const Icon(Icons.flag_outlined),
                 ),
                 isExpanded: true,
-                hint: const Text('請選擇國家'),
+                hint: Text(l10n.selectCountry),
                 items: _kCountries
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                     .toList(),
                 onChanged: (v) => setState(() => _country = v),
-                validator: (v) => v == null ? '請選擇國家' : null,
+                validator: (v) => v == null ? l10n.countryRequired : null,
               ),
               const SizedBox(height: 12),
 
-              // 日期
               TextFormField(
                 controller: _dateCtrl,
-                decoration: const InputDecoration(
-                  labelText: '拜訪日期',
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
-                  suffixIcon: Icon(Icons.edit_calendar_outlined),
+                decoration: InputDecoration(
+                  labelText: l10n.visitDate,
+                  prefixIcon: const Icon(Icons.calendar_today_outlined),
+                  suffixIcon: const Icon(Icons.edit_calendar_outlined),
                 ),
                 readOnly: true,
                 onTap: _pickDate,
                 validator: (v) =>
-                    (v == null || v.isEmpty) ? '請選擇拜訪日期' : null,
+                    (v == null || v.isEmpty) ? l10n.dateRequired : null,
               ),
 
-              // ── 評分 ──────────────────────────────────────────────────
-              const _EditHeader('整體評分'),
+              _EditHeader(l10n.overallRating),
 
               Row(
                 children: [
@@ -939,7 +868,7 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    _kRatingLabels[_rating - 1],
+                    l10n.ratingLabels[_rating - 1],
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.amber[700],
                           fontWeight: FontWeight.w600,
@@ -948,8 +877,32 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
                 ],
               ),
 
-              // ── 座標 ──────────────────────────────────────────────────
-              const _EditHeader('座標位置'),
+              _EditHeader(l10n.markerCategory),
+
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: MarkerCategory.values.map((cat) {
+                  final selected = _category == cat;
+                  return ChoiceChip(
+                    label: Text(cat.localizedDisplay(l10n.isEn)),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _category = cat),
+                    selectedColor:
+                        Theme.of(context).colorScheme.primaryContainer,
+                    labelStyle: TextStyle(
+                      color: selected
+                          ? Theme.of(context)
+                              .colorScheme
+                              .onPrimaryContainer
+                          : null,
+                      fontWeight: selected ? FontWeight.w600 : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              _EditHeader(l10n.coordinates),
 
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -957,16 +910,18 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
                   Expanded(
                     child: TextFormField(
                       controller: _latCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '緯度 *',
-                        prefixIcon: Icon(Icons.north),
+                      decoration: InputDecoration(
+                        labelText: l10n.latitude,
+                        prefixIcon: const Icon(Icons.north),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true, signed: true),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return '請輸入緯度';
+                        if (v == null || v.trim().isEmpty) {
+                          return l10n.latRequired;
+                        }
                         final n = double.tryParse(v);
-                        if (n == null) return '格式錯誤';
+                        if (n == null) return l10n.formatError;
                         if (n < -90 || n > 90) return '-90 ~ 90';
                         return null;
                       },
@@ -976,16 +931,18 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
                   Expanded(
                     child: TextFormField(
                       controller: _lngCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '經度 *',
-                        prefixIcon: Icon(Icons.east),
+                      decoration: InputDecoration(
+                        labelText: l10n.longitude,
+                        prefixIcon: const Icon(Icons.east),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true, signed: true),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return '請輸入經度';
+                        if (v == null || v.trim().isEmpty) {
+                          return l10n.lngRequired;
+                        }
                         final n = double.tryParse(v);
-                        if (n == null) return '格式錯誤';
+                        if (n == null) return l10n.formatError;
                         if (n < -180 || n > 180) return '-180 ~ 180';
                         return null;
                       },
@@ -998,18 +955,17 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
               OutlinedButton.icon(
                 onPressed: _openMapPicker,
                 icon: const Icon(Icons.map_outlined),
-                label: const Text('使用地圖選取座標'),
+                label: Text(l10n.pickOnMap),
               ),
 
-              // ── 心得 ──────────────────────────────────────────────────
-              const _EditHeader('旅遊心得'),
+              _EditHeader(l10n.travelNotes),
 
               TextFormField(
                 controller: _noteCtrl,
-                decoration: const InputDecoration(
-                  labelText: '心得',
+                decoration: InputDecoration(
+                  labelText: l10n.travelNotes,
                   alignLabelWithHint: true,
-                  prefixIcon: Padding(
+                  prefixIcon: const Padding(
                     padding: EdgeInsets.only(bottom: 80),
                     child: Icon(Icons.edit_note_outlined),
                   ),
@@ -1019,7 +975,6 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
                 keyboardType: TextInputType.multiline,
               ),
 
-              // ── 送出 ──────────────────────────────────────────────────
               const SizedBox(height: 32),
 
               FilledButton.icon(
@@ -1032,7 +987,8 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
                             strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.save_outlined),
-                label: Text(_isSubmitting ? '儲存中…' : '儲存變更'),
+                label: Text(
+                    _isSubmitting ? l10n.saving : l10n.saveChanges),
               ),
             ],
           ),
@@ -1042,9 +998,8 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
   }
 }
 
-// ── EditMarkerPage 專用小元件（避免與詳情頁命名衝突）────────────────────────────
+// ── EditMarkerPage 專用小元件 ─────────────────────────────────────────────────
 
-/// 編輯頁區塊標題
 class _EditHeader extends StatelessWidget {
   const _EditHeader(this.title);
   final String title;
@@ -1077,7 +1032,6 @@ class _EditHeader extends StatelessWidget {
   }
 }
 
-/// 編輯頁可互動星號評分元件
 class _EditStars extends StatelessWidget {
   const _EditStars({required this.rating, required this.onChanged});
 
@@ -1092,14 +1046,15 @@ class _EditStars extends StatelessWidget {
         final v = i + 1;
         return IconButton(
           onPressed: () => onChanged(v),
-          tooltip: '$v 星',
+          tooltip: '$v ★',
           icon: Icon(
             v <= rating ? Icons.star_rounded : Icons.star_outline_rounded,
             color: v <= rating ? Colors.amber : Colors.grey[400],
             size: 34,
           ),
           padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+          constraints:
+              const BoxConstraints(minWidth: 38, minHeight: 38),
         );
       }),
     );
