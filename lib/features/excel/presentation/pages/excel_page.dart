@@ -130,7 +130,7 @@ class ExcelPage extends ConsumerWidget {
       BuildContext context, WidgetRef ref, AppLocalizations l10n) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx', 'xls'],
+      allowedExtensions: ['csv'],
       allowMultiple: false,
     );
 

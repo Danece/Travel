@@ -154,8 +154,8 @@ class AppLocalizations {
   String get autoBackup => isEn ? 'Auto Backup' : '自動備份';
   String get autoBackupSubtitle => isEn ? 'Auto backup to Google Drive at set frequency' : '依所選頻率自動備份至 Google Drive';
   String get dataTools => isEn ? 'Data Tools' : '資料工具';
-  String get excelExportImport => isEn ? 'Excel Export / Import' : 'Excel 匯出 / 匯入';
-  String get excelSubtitle => isEn ? 'Export markers to .xlsx or import from file' : '將地標資料匯出為 .xlsx 或從檔案匯入';
+  String get excelExportImport => isEn ? 'CSV Export / Import' : 'CSV 匯出 / 匯入';
+  String get excelSubtitle => isEn ? 'Export markers to .csv or import from file' : '將地標資料匯出為 .csv 或從檔案匯入';
   String get backupRestore => isEn ? 'Backup & Restore' : '備份與還原';
   String get backupRestoreSubtitle => isEn ? 'Backup to Google Drive or restore from backup' : '備份至 Google Drive 或從備份還原';
   String get about => isEn ? 'About' : '關於';
@@ -194,24 +194,24 @@ class AppLocalizations {
   String get restoreSuccess => isEn ? 'Restore successful! All marker data updated' : '還原成功！所有地標資料已更新';
   String get signInCancelled => isEn ? 'Google sign-in cancelled or failed, please try again' : 'Google 登入取消或失敗，請重試';
 
-  // ── Excel page ────────────────────────────────────────────────────────────
-  String get excelPageTitle => isEn ? 'Excel Export / Import' : 'Excel 匯出 / 匯入';
-  String get excelFormatInfo => isEn ? 'Excel Format Info' : 'Excel 格式說明';
+  // ── CSV page ──────────────────────────────────────────────────────────────
+  String get excelPageTitle => isEn ? 'CSV Export / Import' : 'CSV 匯出 / 匯入';
+  String get excelFormatInfo => isEn ? 'CSV Format Info' : 'CSV 格式說明';
   String get excelFormatContent => isEn
-      ? 'Supported: .xlsx, .xls\n'
+      ? 'Supported: .csv (UTF-8)\n'
           'Export columns: ID, Title, Country, Date, Latitude, Longitude, Rating, Notes, Photo Count, Category\n'
           'Required for import: Title, Country, Latitude, Longitude, Rating (1–5)\n'
           'Date format: yyyy-MM-dd (e.g. 2024-04-15)\n'
           'Photo paths not exported; cross-device paths are invalid'
-      : '支援格式：.xlsx、.xls\n'
+      : '支援格式：.csv（UTF-8）\n'
           '匯出欄位：ID、標題、國家、建立日期、緯度、經度、評分、心得內容、照片數量、種類\n'
           '匯入必填：標題、國家、緯度、經度、評分（1–5）\n'
           '日期格式：yyyy-MM-dd（例：2024-04-15）\n'
           '照片路徑不匯出，跨裝置路徑無效';
   String get exportSection => isEn ? 'Export' : '匯出';
-  String get exportButton => isEn ? 'Export to Excel (.xlsx)' : '匯出為 Excel（.xlsx）';
+  String get exportButton => isEn ? 'Export as CSV (.csv)' : '匯出為 CSV（.csv）';
   String get importSection => isEn ? 'Import' : '匯入';
-  String get importButton => isEn ? 'Select .xlsx / .xls file to import' : '選取 .xlsx / .xls 檔案並匯入';
+  String get importButton => isEn ? 'Select .csv file to import' : '選取 .csv 檔案並匯入';
   String get importComplete => isEn ? 'Import Complete' : '匯入完成';
   String get importSuccess => isEn ? 'Imported successfully' : '成功匯入';
   String get importSkipped => isEn ? 'Skipped (empty rows)' : '跳過（空白列）';

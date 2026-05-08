@@ -44,10 +44,7 @@ dependencies:
   # 開啟外部連結（座標開啟 Google Maps）
   url_launcher: ^6.3.1
 
-  # Excel 匯出／匯入
-  excel: ^4.0.2
-
-  # 檔案選取器（匯入時讓使用者選取 .xlsx；備份還原選取 .db）
+  # 檔案選取器（匯入時讓使用者選取 .csv；備份還原選取 .db）
   file_picker: ^8.0.0
 
   # 設定持久化
