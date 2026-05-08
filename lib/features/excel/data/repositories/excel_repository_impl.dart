@@ -197,7 +197,7 @@ class ExcelRepositoryImpl implements ExcelRepository {
         }
 
         final marker = _parseRow(row, rowIdx);
-        await _markerRepository.insertMarker(marker);
+        await _markerRepository.upsertMarker(marker);
         successCount++;
       } on LocalFailure catch (e) {
         failedRows.add(rowIdx + 1);

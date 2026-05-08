@@ -12,6 +12,7 @@ abstract interface class MarkerLocalDatasource {
     List<String>? categories,
   });
   Future<void> insert(MarkerModel model);
+  Future<void> upsert(MarkerModel model);
   Future<void> update(MarkerModel model);
   Future<void> delete(String id);
 }

@@ -48,3 +48,6 @@ app.*.map.json
 .claude/
 custom_lint.log
 travel_mark.iml
+
+# Secret keys — never commit
+android/secrets.properties

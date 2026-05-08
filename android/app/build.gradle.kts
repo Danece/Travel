@@ -15,6 +15,13 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// ── 機密設定：從 android/secrets.properties 讀取（不進 git） ───────────────────
+val secretsPropertiesFile = rootProject.file("secrets.properties")
+val secretsProperties = Properties()
+if (secretsPropertiesFile.exists()) {
+    secretsProperties.load(FileInputStream(secretsPropertiesFile))
+}
+
 android {
     namespace = "com.travelmark.app"
     compileSdk = 36
@@ -44,6 +51,8 @@ android {
         targetSdk     = 34
         versionCode   = 3
         versionName   = "1.0.0"
+        manifestPlaceholders["MAPS_API_KEY"] =
+            secretsProperties.getProperty("MAPS_API_KEY") ?: ""
     }
 
     buildTypes {

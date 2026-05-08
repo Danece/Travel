@@ -12,6 +12,7 @@ abstract interface class MarkerRepository {
     List<String>? categories,
   });
   Future<void> insertMarker(MarkerEntity marker);
+  Future<void> upsertMarker(MarkerEntity marker);
   Future<void> updateMarker(MarkerEntity marker);
   Future<void> deleteMarker(String id);
 }

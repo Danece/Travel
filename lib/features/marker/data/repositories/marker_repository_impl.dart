@@ -44,6 +44,10 @@ class MarkerRepositoryImpl implements MarkerRepository {
       _datasource.insert(MarkerModel.fromEntity(marker));
 
   @override
+  Future<void> upsertMarker(MarkerEntity marker) =>
+      _datasource.upsert(MarkerModel.fromEntity(marker));
+
+  @override
   Future<void> updateMarker(MarkerEntity marker) =>
       _datasource.update(MarkerModel.fromEntity(marker));
 

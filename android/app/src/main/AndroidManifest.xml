@@ -39,11 +39,10 @@
             </intent-filter>
         </activity>
 
-        <!-- ── Google Maps API Key（上架前請替換為真實金鑰） ──────────────── -->
-        <!-- 至 https://console.cloud.google.com 啟用 Maps SDK for Android 並建立 API Key -->
+        <!-- ── Google Maps API Key（從 android/secrets.properties 注入，不進 git） ── -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAtD3k_e2IyX_kWKsV2bdK7rFR-sR0ZGgo" />
+            android:value="${MAPS_API_KEY}" />
 
         <!-- ── FileProvider（相機拍照暫存檔案必要） ───────────────────────── -->
         <!-- authorities 格式：{applicationId}.fileprovider -->

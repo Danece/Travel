@@ -95,6 +95,16 @@ class MarkerLocalDatasourceImpl implements MarkerLocalDatasource {
   }
 
   @override
+  Future<void> upsert(MarkerModel model) async {
+    final db = await _db;
+    await db.insert(
+      MarkerTable.tableName,
+      model.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  @override
   Future<void> update(MarkerModel model) async {
     final db = await _db;
     await db.update(
