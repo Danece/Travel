@@ -51,3 +51,7 @@ travel_mark.iml
 
 # Secret keys — never commit
 android/secrets.properties
+
+# Test / sample data files
+*.xlsx
+*.xls
