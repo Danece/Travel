@@ -1,5 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
@@ -126,6 +130,8 @@ class ExcelPage extends ConsumerWidget {
     }
   }
 
+  static const _channel = MethodChannel('com.travelmark.app/downloads');
+
   Future<void> _onImport(
       BuildContext context, WidgetRef ref, AppLocalizations l10n) async {
     final result = await FilePicker.platform.pickFiles(
@@ -135,17 +141,9 @@ class ExcelPage extends ConsumerWidget {
 
     if (result == null || result.files.isEmpty) return;
 
-    final filePath = result.files.single.path;
-    if (filePath == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.cannotGetFilePath)),
-        );
-      }
-      return;
-    }
+    final file = result.files.single;
 
-    if (!filePath.toLowerCase().endsWith('.csv')) {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.csvOnlyError)),
@@ -154,8 +152,43 @@ class ExcelPage extends ConsumerWidget {
       return;
     }
 
+    final path = file.path;
+    if (path == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.cannotGetFilePath)),
+        );
+      }
+      return;
+    }
+
+    Uint8List? bytes;
+    try {
+      if (Platform.isAndroid) {
+        // 透過 ContentResolver 讀取，正確處理 content:// URI
+        final raw = await _channel.invokeMethod<Uint8List>('readFileBytes', {'path': path});
+        bytes = raw;
+      } else {
+        bytes = await File(path).readAsBytes();
+      }
+    } catch (_) {
+      // 備援：直接讀取
+      try {
+        bytes = await File(path).readAsBytes();
+      } catch (_) {}
+    }
+
+    if (bytes == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.cannotGetFilePath)),
+        );
+      }
+      return;
+    }
+
     final importResult =
-        await ref.read(excelNotifierProvider.notifier).import(filePath);
+        await ref.read(excelNotifierProvider.notifier).import(bytes);
 
     if (!context.mounted) return;
 

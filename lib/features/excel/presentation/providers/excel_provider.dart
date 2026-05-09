@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/database/database_helper.dart';
@@ -49,12 +51,12 @@ class ExcelNotifier extends _$ExcelNotifier {
 
   // ── 匯入 ──────────────────────────────────────────────────────────────────
 
-  /// 從指定路徑匯入 xlsx，成功時回傳 ImportResult，失敗時更新 state 為 AsyncError
-  Future<ImportResult?> import(String filePath) async {
+  /// 從 bytes 匯入 CSV，成功時回傳 ImportResult，失敗時更新 state 為 AsyncError
+  Future<ImportResult?> import(Uint8List bytes) async {
     state = const AsyncLoading();
 
     final result = await AsyncValue.guard<ImportResult>(
-      () => ImportFromExcel(_buildRepo()).call(filePath),
+      () => ImportFromExcel(_buildRepo()).call(bytes),
     );
 
     // 匯入完成後通知 markerNotifier 刷新列表

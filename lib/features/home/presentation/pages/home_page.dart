@@ -5,35 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
+import '../../../../core/utils/country_flag.dart';
 import '../../../marker/domain/entities/marker_category.dart';
 import '../../../marker/domain/entities/marker_entity.dart';
 import '../../../marker/presentation/providers/marker_provider.dart';
 import '../providers/home_provider.dart';
 
-// ── 國旗 emoji 對照表（依 ISO 3166-1 alpha-2） ─────────────────────────────────
-const Map<String, String> _kCountryFlags = {
-  'Taiwan': '🇹🇼', 'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'China': '🇨🇳',
-  'Hong Kong': '🇭🇰', 'Macau': '🇲🇴', 'Mongolia': '🇲🇳',
-  'Thailand': '🇹🇭', 'Vietnam': '🇻🇳', 'Singapore': '🇸🇬',
-  'Malaysia': '🇲🇾', 'Indonesia': '🇮🇩', 'Philippines': '🇵🇭',
-  'Cambodia': '🇰🇭', 'Myanmar': '🇲🇲',
-  'India': '🇮🇳', 'Nepal': '🇳🇵', 'Sri Lanka': '🇱🇰',
-  'Maldives': '🇲🇻', 'Bhutan': '🇧🇹',
-  'United Kingdom': '🇬🇧', 'France': '🇫🇷', 'Germany': '🇩🇪',
-  'Italy': '🇮🇹', 'Spain': '🇪🇸', 'Portugal': '🇵🇹',
-  'Netherlands': '🇳🇱', 'Switzerland': '🇨🇭', 'Austria': '🇦🇹',
-  'Belgium': '🇧🇪', 'Sweden': '🇸🇪', 'Norway': '🇳🇴',
-  'Denmark': '🇩🇰', 'Finland': '🇫🇮', 'Poland': '🇵🇱',
-  'Czech Republic': '🇨🇿', 'Hungary': '🇭🇺', 'Greece': '🇬🇷',
-  'Croatia': '🇭🇷', 'Iceland': '🇮🇸',
-  'United States': '🇺🇸', 'Canada': '🇨🇦', 'Mexico': '🇲🇽',
-  'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Peru': '🇵🇪',
-  'Australia': '🇦🇺', 'New Zealand': '🇳🇿',
-  'UAE': '🇦🇪', 'Israel': '🇮🇱',
-  'Egypt': '🇪🇬', 'Morocco': '🇲🇦',
-};
-
-String _flag(String country) => _kCountryFlags[country] ?? '🌍';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // AppShell — 底部導覽列的持久容器
@@ -131,7 +108,7 @@ class HomePage extends ConsumerWidget {
           final pct = markers.isEmpty ? 0.0 : e.value / markers.length;
           return ListTile(
             dense: true,
-            leading: Text(_flag(e.key), style: const TextStyle(fontSize: 24)),
+            leading: Text(countryFlag(e.key), style: const TextStyle(fontSize: 24)),
             title: Text(e.key),
             subtitle: LinearProgressIndicator(
               value: pct,
@@ -158,7 +135,7 @@ class HomePage extends ConsumerWidget {
         runSpacing: 8,
         children: countries.map((c) {
           return Chip(
-            avatar: Text(_flag(c), style: const TextStyle(fontSize: 16)),
+            avatar: Text(countryFlag(c), style: const TextStyle(fontSize: 16)),
             label: Text(c),
           );
         }).toList(),
@@ -768,7 +745,7 @@ class _RecentMarkerCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(_flag(marker.country),
+                      Text(countryFlag(marker.country),
                           style: const TextStyle(fontSize: 13)),
                       const SizedBox(width: 4),
                       Expanded(

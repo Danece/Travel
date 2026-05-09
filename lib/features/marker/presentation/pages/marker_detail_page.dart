@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
+import '../../../../core/utils/country_flag.dart';
 import '../../domain/entities/marker_category.dart';
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
@@ -423,7 +424,7 @@ class _InfoSection extends StatelessWidget {
         _InfoRow(
           icon: Icons.flag_outlined,
           label: l10n.countryLabel,
-          value: marker.country,
+          value: '${countryFlag(marker.country)} ${marker.country}',
         ),
         _InfoRow(
           icon: Icons.calendar_today_outlined,

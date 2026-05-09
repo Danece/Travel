@@ -130,9 +130,7 @@ class ExcelRepositoryImpl implements ExcelRepository {
   // ══════════════════════════════════════════════════════════════════════════
 
   @override
-  Future<ImportResult> importMarkersFromExcel(String filePath) async {
-    final rawBytes = await File(filePath).readAsBytes();
-
+  Future<ImportResult> importMarkersFromBytes(Uint8List rawBytes) async {
     // 移除 UTF-8 BOM（若有）
     final bytes = (rawBytes.length >= 3 &&
             rawBytes[0] == 0xEF &&
@@ -260,21 +258,29 @@ class ExcelRepositoryImpl implements ExcelRepository {
     }
 
     final displayRow = rowIdx + 1;
+    // 顯示原始行摘要，方便診斷解析錯誤
+    String rowSummary() {
+      final preview = row.take(4).map((f) {
+        final s = f.length > 20 ? '${f.substring(0, 20)}…' : f;
+        return '「$s」';
+      }).join(', ');
+      return '共 ${row.length} 欄，前幾欄：$preview';
+    }
 
     final title = col(_colTitle);
-    if (title == null) throw LocalFailure('第 $displayRow 列：標題不得為空');
+    if (title == null) throw LocalFailure('第 $displayRow 列：標題不得為空（${rowSummary()}）');
 
     final country = col(_colCountry);
-    if (country == null) throw LocalFailure('第 $displayRow 列：國家不得為空');
+    if (country == null) throw LocalFailure('第 $displayRow 列：國家不得為空（${rowSummary()}）');
 
     final lat = dbl(_colLat);
     if (lat == null || lat < -90 || lat > 90) {
-      throw LocalFailure('第 $displayRow 列：緯度無效（需介於 -90 ~ 90）');
+      throw LocalFailure('第 $displayRow 列：緯度無效「${col(_colLat) ?? '空'}」（需介於 -90 ~ 90）');
     }
 
     final lng = dbl(_colLng);
     if (lng == null || lng < -180 || lng > 180) {
-      throw LocalFailure('第 $displayRow 列：經度無效（需介於 -180 ~ 180）');
+      throw LocalFailure('第 $displayRow 列：經度無效「${col(_colLng) ?? '空'}」（需介於 -180 ~ 180）');
     }
 
     final rating = integer(_colRating);
@@ -287,8 +293,7 @@ class ExcelRepositoryImpl implements ExcelRepository {
     final id = rawId ?? const Uuid().v4();
 
     final dateStr = col(_colDate);
-    final createdAt =
-        dateStr != null ? (DateTime.tryParse(dateStr) ?? DateTime.now()) : DateTime.now();
+    final createdAt = dateStr != null ? _parseDate(dateStr) : DateTime.now();
 
     final categoryStr = col(_colCategory) ?? 'attraction';
     final category = MarkerCategory.fromString(categoryStr).name;
@@ -305,5 +310,19 @@ class ExcelRepositoryImpl implements ExcelRepository {
       photoPaths: const [],
       category: category,
     );
+  }
+
+  /// 支援 ISO `2024-03-15` 及 slash `2019/5/1` 兩種日期格式
+  DateTime _parseDate(String s) {
+    final iso = DateTime.tryParse(s);
+    if (iso != null) return iso;
+    final parts = s.split('/');
+    if (parts.length == 3) {
+      final y = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      final d = int.tryParse(parts[2]);
+      if (y != null && m != null && d != null) return DateTime(y, m, d);
+    }
+    return DateTime.now();
   }
 }

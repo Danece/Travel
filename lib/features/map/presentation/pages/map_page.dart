@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
+import '../../../../core/utils/country_flag.dart';
 import '../../../marker/domain/entities/marker_entity.dart';
 import '../../../marker/presentation/pages/marker_detail_page.dart';
 import '../providers/map_provider.dart';
@@ -463,7 +464,7 @@ class _MarkerInfoCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    entity.country,
+                    '${countryFlag(entity.country)} ${entity.country}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context)
                               .colorScheme

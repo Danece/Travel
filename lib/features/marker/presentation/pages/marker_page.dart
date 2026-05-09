@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
+import '../../../../core/utils/country_flag.dart';
 import '../../domain/entities/marker_category.dart';
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
@@ -27,6 +28,9 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
   int? _minRating;
   DateTimeRange? _dateRange;
   Set<MarkerCategory> _selectedCategories = {};
+
+  // 累積所有出現過的國家，確保篩選後重開對話框時仍能看到完整清單
+  final Set<String> _allCountries = {};
 
   @override
   void initState() {
@@ -85,10 +89,16 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
     await _applySearch();
   }
 
-  Future<void> _showCountryDialog(
-      List<MarkerEntity> allMarkers, AppLocalizations l10n) async {
-    final countries =
-        allMarkers.map((m) => m.country).toSet().toList()..sort();
+  Future<void> _showCountryDialog(AppLocalizations l10n) async {
+    // 若快取還未建立，直接從 provider 讀一次補進去
+    if (_allCountries.isEmpty) {
+      final snapshot = ref.read(markerNotifierProvider);
+      snapshot.whenData(
+        (list) => _allCountries.addAll(list.map((m) => m.country)),
+      );
+    }
+    // 合併快取清單與已選清單，確保已選的國家一定出現
+    final countries = _allCountries.union(_selectedCountries).toList()..sort();
     if (countries.isEmpty) return;
 
     var tempSelected = Set<String>.from(_selectedCountries);
@@ -244,6 +254,16 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
     final l10n = AppLocalizations.of(context);
     final markersAsync = ref.watch(markerNotifierProvider);
 
+    // 每次資料更新就把出現的國家加入快取（只增不減）
+    ref.listen(markerNotifierProvider, (_, next) {
+      next.whenData((list) {
+        final incoming = list.map((m) => m.country).toSet();
+        if (!_allCountries.containsAll(incoming)) {
+          setState(() => _allCountries.addAll(incoming));
+        }
+      });
+    });
+
     return Scaffold(
       appBar: AppBar(title: Text(l10n.markerPageTitle)),
       body: Column(
@@ -296,8 +316,7 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
                           _selectedCountries.length),
                   icon: Icons.flag_outlined,
                   isActive: _selectedCountries.isNotEmpty,
-                  onPressed: () => markersAsync
-                      .whenData((list) => _showCountryDialog(list, l10n)),
+                  onPressed: () => _showCountryDialog(l10n),
                 ),
                 const SizedBox(width: 8),
 
@@ -566,7 +585,7 @@ class _MarkerCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         '${MarkerCategory.fromString(marker.category).emoji}  '
-                        '${marker.country}  ·  '
+                        '${countryFlag(marker.country)} ${marker.country}  ·  '
                         '${marker.createdAt.year}/'
                         '${marker.createdAt.month.toString().padLeft(2, '0')}/'
                         '${marker.createdAt.day.toString().padLeft(2, '0')}',

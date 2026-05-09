@@ -9,33 +9,11 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
+import '../../../../core/utils/country_flag.dart';
 import '../../domain/entities/marker_category.dart';
 import '../providers/marker_provider.dart';
 import 'map_picker_page.dart';
 
-const Map<String, String> _kCountryFlags = {
-  'Taiwan': '🇹🇼', 'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'China': '🇨🇳',
-  'Hong Kong': '🇭🇰', 'Macau': '🇲🇴', 'Mongolia': '🇲🇳',
-  'Thailand': '🇹🇭', 'Vietnam': '🇻🇳', 'Singapore': '🇸🇬',
-  'Malaysia': '🇲🇾', 'Indonesia': '🇮🇩', 'Philippines': '🇵🇭',
-  'Cambodia': '🇰🇭', 'Myanmar': '🇲🇲',
-  'India': '🇮🇳', 'Nepal': '🇳🇵', 'Sri Lanka': '🇱🇰',
-  'Maldives': '🇲🇻', 'Bhutan': '🇧🇹',
-  'United Kingdom': '🇬🇧', 'France': '🇫🇷', 'Germany': '🇩🇪',
-  'Italy': '🇮🇹', 'Spain': '🇪🇸', 'Portugal': '🇵🇹',
-  'Netherlands': '🇳🇱', 'Switzerland': '🇨🇭', 'Austria': '🇦🇹',
-  'Belgium': '🇧🇪', 'Sweden': '🇸🇪', 'Norway': '🇳🇴',
-  'Denmark': '🇩🇰', 'Finland': '🇫🇮', 'Poland': '🇵🇱',
-  'Czech Republic': '🇨🇿', 'Hungary': '🇭🇺', 'Greece': '🇬🇷',
-  'Croatia': '🇭🇷', 'Iceland': '🇮🇸',
-  'United States': '🇺🇸', 'Canada': '🇨🇦', 'Mexico': '🇲🇽',
-  'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Peru': '🇵🇪',
-  'Australia': '🇦🇺', 'New Zealand': '🇳🇿',
-  'UAE': '🇦🇪', 'Israel': '🇮🇱',
-  'Egypt': '🇪🇬', 'Morocco': '🇲🇦',
-};
-
-String _flag(String country) => _kCountryFlags[country] ?? '🌍';
 
 const List<String> _kCommonCountries = [
   'Taiwan', 'Japan', 'South Korea', 'China', 'Hong Kong', 'Macau', 'Mongolia',
@@ -358,7 +336,7 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
                           value: c,
                           child: Row(
                             children: [
-                              Text(_flag(c),
+                              Text(countryFlag(c),
                                   style: const TextStyle(fontSize: 20)),
                               const SizedBox(width: 10),
                               Expanded(child: Text(c)),
@@ -372,7 +350,7 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(_flag(c),
+                              Text(countryFlag(c),
                                   style: const TextStyle(fontSize: 20)),
                               const SizedBox(width: 8),
                               Text(c),

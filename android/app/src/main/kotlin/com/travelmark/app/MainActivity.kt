@@ -1,6 +1,7 @@
 package com.travelmark.app
 
 import android.content.ContentValues
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -36,10 +37,77 @@ class MainActivity : FlutterActivity() {
                             result.error("SAVE_ERROR", e.message, null)
                         }
                     }
+                    "readFileBytes" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("INVALID_ARGS", "path 不可為空", null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            val bytes = readFileBytes(path)
+                            result.success(bytes)
+                        } catch (e: Exception) {
+                            result.error("READ_ERROR", e.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
     }
+
+    private fun readFileBytes(path: String): ByteArray {
+        // 1. 先讀取（content URI 或一般路徑）
+        val bytes = readRaw(path)
+
+        // 2. 若結果是 PDF（雲端 Document Provider 回傳預覽版），改從本機 Downloads 讀取
+        if (bytes.isPdf()) {
+            android.util.Log.d("TravelMark", "Got PDF bytes, trying local Downloads fallback")
+            val filename = path.substringAfterLast("/").substringAfterLast("%2F")
+            val downloadsPath = "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/$filename"
+            android.util.Log.d("TravelMark", "Trying local path: $downloadsPath")
+            val localFile = File(downloadsPath)
+            if (localFile.exists()) {
+                val localBytes = localFile.readBytes()
+                if (!localBytes.isPdf()) return localBytes
+            }
+        }
+
+        return bytes
+    }
+
+    private fun readRaw(path: String): ByteArray {
+        if (path.startsWith("content://")) {
+            val uri = Uri.parse(path)
+            // 先嘗試從 document ID 解析真正的磁碟路徑
+            val realPath = resolveRealPath(uri)
+            if (realPath != null) {
+                val f = File(realPath)
+                if (f.exists()) {
+                    val b = f.readBytes()
+                    if (!b.isPdf()) return b
+                }
+            }
+            return contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: throw Exception("無法開啟 content URI 串流：$path")
+        }
+        return File(path).readBytes()
+    }
+
+    private fun resolveRealPath(uri: Uri): String? {
+        return try {
+            val docId = android.provider.DocumentsContract.getDocumentId(uri)
+            when {
+                docId.startsWith("raw:") -> docId.removePrefix("raw:")
+                docId.startsWith("primary:") ->
+                    "/storage/emulated/0/${docId.removePrefix("primary:")}"
+                else -> null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun ByteArray.isPdf() = size >= 4 &&
+            this[0] == 0x25.toByte() && this[1] == 0x50.toByte() &&
+            this[2] == 0x44.toByte() && this[3] == 0x46.toByte()
 
     private fun saveToDownloads(bytes: ByteArray, filename: String): String {
         val mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
