@@ -49,8 +49,8 @@ android {
         applicationId = "com.travelmark.app"
         minSdk        = 26
         targetSdk     = 34
-        versionCode   = 3
-        versionName   = "1.0.0"
+        versionCode   = flutter.versionCode
+        versionName   = flutter.versionName
         manifestPlaceholders["MAPS_API_KEY"] =
             secretsProperties.getProperty("MAPS_API_KEY") ?: ""
     }
@@ -67,6 +67,11 @@ android {
             )
         }
     }
+}
+
+dependencies {
+    // Android 12+ SplashScreen API（取代 Flutter 預設 Logo）
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }
 
 flutter {

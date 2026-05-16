@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Future.delayed(Duration.zero);
   runApp(const ProviderScope(child: TravelMarkApp()));
 }

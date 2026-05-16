@@ -36,6 +36,7 @@ class _TravelMarkAppState extends ConsumerState<TravelMarkApp> {
 
     return MaterialApp.router(
       title: 'Travel Mark',
+      debugShowCheckedModeBanner: false,
       theme: isColorful ? AppTheme.colorful : AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: isColorful ? ThemeMode.light : themeMode,

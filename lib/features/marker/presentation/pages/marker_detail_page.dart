@@ -791,6 +791,10 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // Include stored country even if it's not in _kCountries (e.g. CSV-imported data)
+    final dropdownCountries = (_country != null && !_kCountries.contains(_country))
+        ? [_country!, ..._kCountries]
+        : _kCountries;
 
     return Scaffold(
       appBar: AppBar(
@@ -831,14 +835,14 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                initialValue: _country,
+                value: _country,
                 decoration: InputDecoration(
                   labelText: l10n.countryField,
                   prefixIcon: const Icon(Icons.flag_outlined),
                 ),
                 isExpanded: true,
                 hint: Text(l10n.selectCountry),
-                items: _kCountries
+                items: dropdownCountries
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                     .toList(),
                 onChanged: (v) => setState(() => _country = v),

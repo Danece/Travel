@@ -72,6 +72,9 @@ class AppLocalizations {
   String get filterMinRating => isEn ? 'Minimum Rating' : '最低評分';
   String starsAbove(int n) => isEn ? '$n★ and above' : '$n★ 以上';
   String get selectDateRange => isEn ? 'Select Date Range' : '選擇拜訪日期區間';
+  String get selectStartDate => isEn ? 'Select Start Date' : '選擇開始日期';
+  String get selectEndDate => isEn ? 'Select End Date' : '選擇結束日期';
+  String get loadingMarkers => isEn ? 'Loading markers...' : '地標載入中…';
   String get filterCategoryTitle => isEn ? 'Filter by Category' : '篩選種類';
   String filterCountryActive(int n) => isEn ? 'Country ($n)' : '國家（$n）';
   String filterCategoryActive(int n) => isEn ? 'Category ($n)' : '種類（$n）';

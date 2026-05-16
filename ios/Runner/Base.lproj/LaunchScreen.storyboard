@@ -31,7 +31,4 @@
             <point key="canvasLocation" x="53" y="375"/>
         </scene>
     </scenes>
-    <resources>
-        <image name="LaunchImage" width="168" height="185"/>
-    </resources>
 </document>

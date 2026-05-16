@@ -180,19 +180,36 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
 
   Future<void> _showDateRangePicker(AppLocalizations l10n) async {
     final now = DateTime.now();
-    final picked = await showDateRangePicker(
+
+    // 開始日期：預設開啟年份選擇畫面
+    final start = await showDatePicker(
       context: context,
+      initialDate: _dateRange?.start ?? DateTime(now.year, 1, 1),
       firstDate: DateTime(2000),
       lastDate: now,
-      initialDateRange: _dateRange,
-      helpText: l10n.selectDateRange,
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: l10n.selectStartDate,
       confirmText: l10n.confirm,
       cancelText: l10n.cancel,
-      saveText: l10n.confirm,
     );
+    if (start == null || !mounted) return;
 
-    if (picked == null || !mounted) return;
-    setState(() => _dateRange = picked);
+    // 結束日期：預設開啟年份選擇畫面，最早只能選到開始日
+    final end = await showDatePicker(
+      context: context,
+      initialDate: _dateRange?.end.isAfter(start) == true
+          ? _dateRange!.end
+          : start,
+      firstDate: start,
+      lastDate: now,
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: l10n.selectEndDate,
+      confirmText: l10n.confirm,
+      cancelText: l10n.cancel,
+    );
+    if (end == null || !mounted) return;
+
+    setState(() => _dateRange = DateTimeRange(start: start, end: end));
     await _applySearch();
   }
 

@@ -10,6 +10,7 @@ import '../../features/marker/presentation/pages/create_marker_page.dart';
 import '../../features/marker/presentation/pages/marker_detail_page.dart';
 import '../../features/marker/presentation/pages/marker_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/splash/presentation/pages/splash_page.dart';
 
 part 'app_router.g.dart';
 
@@ -32,8 +33,14 @@ part 'app_router.g.dart';
 @riverpod
 GoRouter appRouter(AppRouterRef ref) {
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/splash',
     routes: [
+      // ── 啟動動畫（無底部導覽列，直接跳轉到 /）─────────────────────────────
+      GoRoute(
+        path: '/splash',
+        pageBuilder: (_, __) => const NoTransitionPage(child: SplashPage()),
+      ),
+
       // ── Shell：持有底部導覽列的父層 Scaffold ─────────────────────────────
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),

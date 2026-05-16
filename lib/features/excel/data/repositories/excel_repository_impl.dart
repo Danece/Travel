@@ -23,7 +23,6 @@ const _colLat = 4;
 const _colLng = 5;
 const _colRating = 6;
 const _colNote = 7;
-const _colPhotoCount = 8;
 const _colCategory = 9;
 
 const _headers = [
