@@ -212,7 +212,7 @@ class _SplashPageState extends State<SplashPage>
                   child: Padding(
                     padding: EdgeInsets.only(bottom: 36),
                     child: Text(
-                      'v1.0.5',
+                      'v1.1.0',
                       style: TextStyle(
                         color: Colors.white30,
                         fontSize: 12,

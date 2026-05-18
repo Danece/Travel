@@ -12,7 +12,7 @@ const WHITE = '#FFFFFF';
 const PAGE_W  = 258;  // each page width
 const PAGE_H  = 318;  // page height
 const SPINE   = 20;   // gap between pages (spine)
-const BOOK_Y  = 188;  // top of book
+const BOOK_Y  = 248;  // top of book — vertically centres book+text in 1024px canvas
 const CORNER  = 20;
 
 const LEFT_X  = CX - PAGE_W - SPINE / 2;
@@ -110,13 +110,13 @@ function drawIcon(canvas, bg) {
   ctx.stroke();
 
   // ── Text "生活隨筆" ──────────────────────────────────────────────────────────
-  const textY = BOOK_Y + PAGE_H + 110;
+  const textY = BOOK_Y + PAGE_H + 125;
   ctx.fillStyle = WHITE;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   // Try to render Chinese text; fall back gracefully
-  ctx.font = `bold 148px "Microsoft YaHei", "SimHei", "PingFang SC", sans-serif`;
+  ctx.font = `bold 172px "Microsoft YaHei", "SimHei", "PingFang SC", sans-serif`;
   ctx.fillText('生活隨筆', CX, textY);
 }
 

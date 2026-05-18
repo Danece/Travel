@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "851456737271",
+    "project_id": "travelmark-495110",
+    "storage_bucket": "travelmark-495110.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:851456737271:android:0ae28c84678002bd17b8f2",
+        "android_client_info": {
+          "package_name": "com.travelmark.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "851456737271-rp2cvtrff0fa1vo6verjciujnt2gtd1p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.travelmark.app",
+            "certificate_hash": "27a6812c3e0c08362c1b294fda41bb86021a8ede"
+          }
+        },
+        {
+          "client_id": "851456737271-vv3kbdp62rcqlj0d3t2k0ed35a2a4srf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdBbfsnvqi1Wtq__RRfA-1r69RkpLdN9I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "851456737271-vv3kbdp62rcqlj0d3t2k0ed35a2a4srf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
