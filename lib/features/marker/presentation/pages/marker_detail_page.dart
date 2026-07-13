@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/country_names.dart';
 import '../../../../core/l10n/app_localizations.dart';
 import '../../../../core/utils/country_flag.dart';
+import '../../../../core/widgets/weather_icon_widget.dart';
 import '../../domain/entities/marker_category.dart';
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
@@ -453,6 +454,10 @@ class _InfoSection extends StatelessWidget {
           ),
         ),
 
+        // 天氣資訊列：有紀錄天氣才顯示，舊資料或未取得時隱藏
+        if (marker.weatherCondition != null)
+          _WeatherInfoRow(marker: marker),
+
         if (marker.note.isNotEmpty) ...[
           const SizedBox(height: 20),
           _SectionLabel(l10n.travelNotesSection),
@@ -570,6 +575,92 @@ class _StarDisplay extends StatelessWidget {
           size: 20,
         );
       }),
+    );
+  }
+}
+
+/// 天氣資訊列：與座標列使用相同的 Row 排版。
+///
+/// 左側以 [WeatherIconWidget] 取代一般 [Icon]，
+/// 右側依序顯示中文描述、氣溫、濕度。
+/// 僅在 [marker.weatherCondition] 不為 null 時渲染。
+class _WeatherInfoRow extends StatelessWidget {
+  const _WeatherInfoRow({required this.marker});
+
+  final MarkerEntity marker;
+
+  @override
+  Widget build(BuildContext context) {
+    final condition = marker.weatherCondition!; // 呼叫端已確認非 null
+    final description = marker.weatherDescription ?? condition;
+    final textTheme = Theme.of(context).textTheme;
+    final subtleColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 天氣 icon（與座標列 Icons.location_on_outlined 同寬度區域）
+          WeatherIconWidget(condition: condition, size: 28),
+          const SizedBox(width: 12),
+
+          // 標籤（與其他列的 label 對齊）
+          SizedBox(
+            width: 40,
+            child: Text(
+              '天氣',
+              textAlign: TextAlign.right,
+              style: textTheme.bodySmall?.copyWith(color: subtleColor),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // 天氣資料：描述 + 溫度 + 濕度
+          Expanded(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // 中文天氣描述
+                Text(description, style: textTheme.bodyMedium),
+
+                // 氣溫（有值才顯示）
+                if (marker.temperature != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.thermostat_outlined,
+                          size: 15, color: subtleColor),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${marker.temperature}°C',
+                        style: textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+
+                // 濕度（有值才顯示）
+                if (marker.humidity != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.water_drop_outlined,
+                          size: 15, color: subtleColor),
+                      const SizedBox(width: 2),
+                      Text(
+                        '濕度 ${marker.humidity}%',
+                        style: textTheme.bodyMedium
+                            ?.copyWith(color: subtleColor),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

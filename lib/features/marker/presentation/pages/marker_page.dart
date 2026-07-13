@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
 import '../../../../core/utils/country_flag.dart';
+import '../../../../core/widgets/weather_icon_widget.dart';
 import '../../domain/entities/marker_category.dart';
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
@@ -618,7 +619,21 @@ class _MarkerCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 6),
-                      _StarRow(rating: marker.rating),
+                      // 星號列 + 天氣 icon（有天氣資料才顯示，保持列表簡潔）
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _StarRow(rating: marker.rating),
+                          if (marker.weatherCondition != null) ...[
+                            const SizedBox(width: 6),
+                            WeatherIconWidget(
+                              condition: marker.weatherCondition!,
+                              size: 16,
+                              showLabel: false,
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
                 ),

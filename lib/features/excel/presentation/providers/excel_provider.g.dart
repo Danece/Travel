@@ -6,7 +6,7 @@ part of 'excel_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$excelNotifierHash() => r'6483da53743266fc42535879f4ea0fabd23854a7';
+String _$excelNotifierHash() => r'43f51cae394c000e7aa269493a9cdc610a113ed5';
 
 /// See also [ExcelNotifier].
 @ProviderFor(ExcelNotifier)

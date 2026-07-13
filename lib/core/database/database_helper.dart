@@ -19,7 +19,11 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     return openDatabase(
       join(dbPath, 'travel_mark.db'),
-      version: 2,
+      // v1 → 初始建表
+      // v2 → 新增 category 欄位
+      // v3 → 新增天氣相關欄位（weather_condition / weather_description /
+      //       temperature / humidity / weather_icon）
+      version: 3,
       onCreate: (db, _) async {
         await db.execute(MarkerTable.createTableSql);
       },
@@ -28,6 +32,29 @@ class DatabaseHelper {
           await db.execute(
             'ALTER TABLE ${MarkerTable.tableName} ADD COLUMN '
             '${MarkerTable.colCategory} TEXT NOT NULL DEFAULT \'attraction\'',
+          );
+        }
+        if (oldVersion < 3) {
+          // 天氣欄位全部允許 NULL，不指定 DEFAULT，舊資料自動以 NULL 填充
+          await db.execute(
+            'ALTER TABLE ${MarkerTable.tableName} ADD COLUMN '
+            '${MarkerTable.colWeatherCondition} TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE ${MarkerTable.tableName} ADD COLUMN '
+            '${MarkerTable.colWeatherDescription} TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE ${MarkerTable.tableName} ADD COLUMN '
+            '${MarkerTable.colTemperature} REAL',
+          );
+          await db.execute(
+            'ALTER TABLE ${MarkerTable.tableName} ADD COLUMN '
+            '${MarkerTable.colHumidity} INTEGER',
+          );
+          await db.execute(
+            'ALTER TABLE ${MarkerTable.tableName} ADD COLUMN '
+            '${MarkerTable.colWeatherIcon} TEXT',
           );
         }
       },

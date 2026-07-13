@@ -23,7 +23,12 @@ mixin _$MarkerEntity {
   int get rating;
   String get note;
   List<String> get photoPaths;
-  String get category;
+  String get category; // ── 天氣資訊（建立標記時可選填，舊資料全部為 null）────────────────────
+  String? get weatherCondition; // 天氣狀況代碼，如 "clear"、"rain"
+  String? get weatherDescription; // 天氣描述，如 "晴天"、"多雲"
+  double? get temperature; // 氣溫（°C）
+  int? get humidity; // 濕度（%）
+  String? get weatherIcon;
 
   /// Create a copy of MarkerEntity
   /// with the given fields replaced by the non-null parameter values.
@@ -52,7 +57,17 @@ mixin _$MarkerEntity {
             const DeepCollectionEquality()
                 .equals(other.photoPaths, photoPaths) &&
             (identical(other.category, category) ||
-                other.category == category));
+                other.category == category) &&
+            (identical(other.weatherCondition, weatherCondition) ||
+                other.weatherCondition == weatherCondition) &&
+            (identical(other.weatherDescription, weatherDescription) ||
+                other.weatherDescription == weatherDescription) &&
+            (identical(other.temperature, temperature) ||
+                other.temperature == temperature) &&
+            (identical(other.humidity, humidity) ||
+                other.humidity == humidity) &&
+            (identical(other.weatherIcon, weatherIcon) ||
+                other.weatherIcon == weatherIcon));
   }
 
   @override
@@ -67,11 +82,16 @@ mixin _$MarkerEntity {
       rating,
       note,
       const DeepCollectionEquality().hash(photoPaths),
-      category);
+      category,
+      weatherCondition,
+      weatherDescription,
+      temperature,
+      humidity,
+      weatherIcon);
 
   @override
   String toString() {
-    return 'MarkerEntity(id: $id, title: $title, country: $country, createdAt: $createdAt, latitude: $latitude, longitude: $longitude, rating: $rating, note: $note, photoPaths: $photoPaths, category: $category)';
+    return 'MarkerEntity(id: $id, title: $title, country: $country, createdAt: $createdAt, latitude: $latitude, longitude: $longitude, rating: $rating, note: $note, photoPaths: $photoPaths, category: $category, weatherCondition: $weatherCondition, weatherDescription: $weatherDescription, temperature: $temperature, humidity: $humidity, weatherIcon: $weatherIcon)';
   }
 }
 
@@ -91,7 +111,12 @@ abstract mixin class $MarkerEntityCopyWith<$Res> {
       int rating,
       String note,
       List<String> photoPaths,
-      String category});
+      String category,
+      String? weatherCondition,
+      String? weatherDescription,
+      double? temperature,
+      int? humidity,
+      String? weatherIcon});
 }
 
 /// @nodoc
@@ -116,6 +141,11 @@ class _$MarkerEntityCopyWithImpl<$Res> implements $MarkerEntityCopyWith<$Res> {
     Object? note = null,
     Object? photoPaths = null,
     Object? category = null,
+    Object? weatherCondition = freezed,
+    Object? weatherDescription = freezed,
+    Object? temperature = freezed,
+    Object? humidity = freezed,
+    Object? weatherIcon = freezed,
   }) {
     return _then(_self.copyWith(
       id: null == id
@@ -158,6 +188,26 @@ class _$MarkerEntityCopyWithImpl<$Res> implements $MarkerEntityCopyWith<$Res> {
           ? _self.category
           : category // ignore: cast_nullable_to_non_nullable
               as String,
+      weatherCondition: freezed == weatherCondition
+          ? _self.weatherCondition
+          : weatherCondition // ignore: cast_nullable_to_non_nullable
+              as String?,
+      weatherDescription: freezed == weatherDescription
+          ? _self.weatherDescription
+          : weatherDescription // ignore: cast_nullable_to_non_nullable
+              as String?,
+      temperature: freezed == temperature
+          ? _self.temperature
+          : temperature // ignore: cast_nullable_to_non_nullable
+              as double?,
+      humidity: freezed == humidity
+          ? _self.humidity
+          : humidity // ignore: cast_nullable_to_non_nullable
+              as int?,
+      weatherIcon: freezed == weatherIcon
+          ? _self.weatherIcon
+          : weatherIcon // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }
@@ -263,7 +313,12 @@ extension MarkerEntityPatterns on MarkerEntity {
             int rating,
             String note,
             List<String> photoPaths,
-            String category)?
+            String category,
+            String? weatherCondition,
+            String? weatherDescription,
+            double? temperature,
+            int? humidity,
+            String? weatherIcon)?
         $default, {
     required TResult orElse(),
   }) {
@@ -280,7 +335,12 @@ extension MarkerEntityPatterns on MarkerEntity {
             _that.rating,
             _that.note,
             _that.photoPaths,
-            _that.category);
+            _that.category,
+            _that.weatherCondition,
+            _that.weatherDescription,
+            _that.temperature,
+            _that.humidity,
+            _that.weatherIcon);
       case _:
         return orElse();
     }
@@ -311,7 +371,12 @@ extension MarkerEntityPatterns on MarkerEntity {
             int rating,
             String note,
             List<String> photoPaths,
-            String category)
+            String category,
+            String? weatherCondition,
+            String? weatherDescription,
+            double? temperature,
+            int? humidity,
+            String? weatherIcon)
         $default,
   ) {
     final _that = this;
@@ -327,7 +392,12 @@ extension MarkerEntityPatterns on MarkerEntity {
             _that.rating,
             _that.note,
             _that.photoPaths,
-            _that.category);
+            _that.category,
+            _that.weatherCondition,
+            _that.weatherDescription,
+            _that.temperature,
+            _that.humidity,
+            _that.weatherIcon);
     }
   }
 
@@ -355,7 +425,12 @@ extension MarkerEntityPatterns on MarkerEntity {
             int rating,
             String note,
             List<String> photoPaths,
-            String category)?
+            String category,
+            String? weatherCondition,
+            String? weatherDescription,
+            double? temperature,
+            int? humidity,
+            String? weatherIcon)?
         $default,
   ) {
     final _that = this;
@@ -371,7 +446,12 @@ extension MarkerEntityPatterns on MarkerEntity {
             _that.rating,
             _that.note,
             _that.photoPaths,
-            _that.category);
+            _that.category,
+            _that.weatherCondition,
+            _that.weatherDescription,
+            _that.temperature,
+            _that.humidity,
+            _that.weatherIcon);
       case _:
         return null;
     }
@@ -391,7 +471,12 @@ class _MarkerEntity implements MarkerEntity {
       required this.rating,
       this.note = '',
       final List<String> photoPaths = const [],
-      this.category = 'attraction'})
+      this.category = 'attraction',
+      this.weatherCondition,
+      this.weatherDescription,
+      this.temperature,
+      this.humidity,
+      this.weatherIcon})
       : assert(rating >= 1 && rating <= 5, 'rating must be between 1 and 5'),
         _photoPaths = photoPaths;
 
@@ -424,6 +509,21 @@ class _MarkerEntity implements MarkerEntity {
   @override
   @JsonKey()
   final String category;
+// ── 天氣資訊（建立標記時可選填，舊資料全部為 null）────────────────────
+  @override
+  final String? weatherCondition;
+// 天氣狀況代碼，如 "clear"、"rain"
+  @override
+  final String? weatherDescription;
+// 天氣描述，如 "晴天"、"多雲"
+  @override
+  final double? temperature;
+// 氣溫（°C）
+  @override
+  final int? humidity;
+// 濕度（%）
+  @override
+  final String? weatherIcon;
 
   /// Create a copy of MarkerEntity
   /// with the given fields replaced by the non-null parameter values.
@@ -452,7 +552,17 @@ class _MarkerEntity implements MarkerEntity {
             const DeepCollectionEquality()
                 .equals(other._photoPaths, _photoPaths) &&
             (identical(other.category, category) ||
-                other.category == category));
+                other.category == category) &&
+            (identical(other.weatherCondition, weatherCondition) ||
+                other.weatherCondition == weatherCondition) &&
+            (identical(other.weatherDescription, weatherDescription) ||
+                other.weatherDescription == weatherDescription) &&
+            (identical(other.temperature, temperature) ||
+                other.temperature == temperature) &&
+            (identical(other.humidity, humidity) ||
+                other.humidity == humidity) &&
+            (identical(other.weatherIcon, weatherIcon) ||
+                other.weatherIcon == weatherIcon));
   }
 
   @override
@@ -467,11 +577,16 @@ class _MarkerEntity implements MarkerEntity {
       rating,
       note,
       const DeepCollectionEquality().hash(_photoPaths),
-      category);
+      category,
+      weatherCondition,
+      weatherDescription,
+      temperature,
+      humidity,
+      weatherIcon);
 
   @override
   String toString() {
-    return 'MarkerEntity(id: $id, title: $title, country: $country, createdAt: $createdAt, latitude: $latitude, longitude: $longitude, rating: $rating, note: $note, photoPaths: $photoPaths, category: $category)';
+    return 'MarkerEntity(id: $id, title: $title, country: $country, createdAt: $createdAt, latitude: $latitude, longitude: $longitude, rating: $rating, note: $note, photoPaths: $photoPaths, category: $category, weatherCondition: $weatherCondition, weatherDescription: $weatherDescription, temperature: $temperature, humidity: $humidity, weatherIcon: $weatherIcon)';
   }
 }
 
@@ -493,7 +608,12 @@ abstract mixin class _$MarkerEntityCopyWith<$Res>
       int rating,
       String note,
       List<String> photoPaths,
-      String category});
+      String category,
+      String? weatherCondition,
+      String? weatherDescription,
+      double? temperature,
+      int? humidity,
+      String? weatherIcon});
 }
 
 /// @nodoc
@@ -519,6 +639,11 @@ class __$MarkerEntityCopyWithImpl<$Res>
     Object? note = null,
     Object? photoPaths = null,
     Object? category = null,
+    Object? weatherCondition = freezed,
+    Object? weatherDescription = freezed,
+    Object? temperature = freezed,
+    Object? humidity = freezed,
+    Object? weatherIcon = freezed,
   }) {
     return _then(_MarkerEntity(
       id: null == id
@@ -561,6 +686,26 @@ class __$MarkerEntityCopyWithImpl<$Res>
           ? _self.category
           : category // ignore: cast_nullable_to_non_nullable
               as String,
+      weatherCondition: freezed == weatherCondition
+          ? _self.weatherCondition
+          : weatherCondition // ignore: cast_nullable_to_non_nullable
+              as String?,
+      weatherDescription: freezed == weatherDescription
+          ? _self.weatherDescription
+          : weatherDescription // ignore: cast_nullable_to_non_nullable
+              as String?,
+      temperature: freezed == temperature
+          ? _self.temperature
+          : temperature // ignore: cast_nullable_to_non_nullable
+              as double?,
+      humidity: freezed == humidity
+          ? _self.humidity
+          : humidity // ignore: cast_nullable_to_non_nullable
+              as int?,
+      weatherIcon: freezed == weatherIcon
+          ? _self.weatherIcon
+          : weatherIcon // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }

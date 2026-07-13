@@ -16,5 +16,11 @@ sealed class MarkerEntity with _$MarkerEntity {
     @Default('') String note,
     @Default([]) List<String> photoPaths,
     @Default('attraction') String category,
+    // ── 天氣資訊（建立標記時可選填，舊資料全部為 null）────────────────────
+    String? weatherCondition,    // 天氣狀況代碼，如 "clear"、"rain"
+    String? weatherDescription,  // 天氣描述，如 "晴天"、"多雲"
+    double? temperature,         // 氣溫（°C）
+    int? humidity,               // 濕度（%）
+    String? weatherIcon,         // icon 代碼，對應本地 icon 顯示
   }) = _MarkerEntity;
 }

@@ -41,6 +41,12 @@ class MarkerNotifier extends _$MarkerNotifier {
     String note = '',
     List<String> photoPaths = const [],
     String category = 'attraction',
+    // 天氣資訊（選填，取得失敗時傳 null）
+    String? weatherCondition,
+    String? weatherDescription,
+    double? temperature,
+    int? humidity,
+    String? weatherIcon,
   }) async {
     final repo = ref.read(markerRepositoryProvider);
     final marker = MarkerEntity(
@@ -54,6 +60,11 @@ class MarkerNotifier extends _$MarkerNotifier {
       note: note,
       photoPaths: photoPaths,
       category: category,
+      weatherCondition: weatherCondition,
+      weatherDescription: weatherDescription,
+      temperature: temperature,
+      humidity: humidity,
+      weatherIcon: weatherIcon,
     );
     await SaveMarker(repo).call(marker);
     ref.invalidateSelf();

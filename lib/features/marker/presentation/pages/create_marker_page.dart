@@ -9,7 +9,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/constants/country_names.dart';
 import '../../../../core/l10n/app_localizations.dart';
+import '../../../../core/services/weather_service.dart';
 import '../../../../core/utils/country_flag.dart';
+import '../../../../core/widgets/weather_icon_widget.dart';
 import '../../domain/entities/marker_category.dart';
 import '../providers/marker_provider.dart';
 import '../models/map_picker_result.dart';
@@ -42,6 +44,13 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
   MarkerCategory _category = MarkerCategory.attraction;
   final List<String> _photoPaths = [];
   bool _isSubmitting = false;
+
+  /// 天氣 API 回傳結果；null 表示尚未取得或取得失敗
+  WeatherResult? _weatherResult;
+  /// true 表示正在呼叫天氣 API（顯示 loading 狀態）
+  bool _isLoadingWeather = false;
+  /// true 表示曾嘗試取得天氣但失敗（區分「未取得」與「取得失敗」）
+  bool _weatherFetchFailed = false;
 
   final _picker = ImagePicker();
 
@@ -183,6 +192,8 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
         _selectedDate = picked;
         _dateController.text = _formatDate(picked);
       });
+      // 日期變更後重新取得天氣（座標已填入才有意義）
+      await _fetchWeather();
     }
   }
 
@@ -215,6 +226,33 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
         );
       }
     }
+
+    // 座標確認後自動取得天氣資訊
+    await _fetchWeather();
+  }
+
+  /// 依目前座標與日期呼叫天氣 API，更新 [_weatherResult]。
+  ///
+  /// 座標尚未填入時直接返回；取得失敗時設定 [_weatherFetchFailed] 為 true。
+  Future<void> _fetchWeather() async {
+    final lat = double.tryParse(_latController.text);
+    final lng = double.tryParse(_lngController.text);
+    if (lat == null || lng == null) return;
+
+    setState(() {
+      _isLoadingWeather = true;
+      _weatherFetchFailed = false;
+    });
+
+    final service = ref.read(weatherServiceProvider);
+    final result = await service.getWeather(lat, lng, _selectedDate);
+
+    if (!mounted) return;
+    setState(() {
+      _weatherResult = result;
+      _isLoadingWeather = false;
+      _weatherFetchFailed = result == null;
+    });
   }
 
   void _removePhoto(int index) {
@@ -262,6 +300,12 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
             note: _noteController.text.trim(),
             photoPaths: List<String>.from(_photoPaths),
             category: _category.name,
+            // 天氣資訊（取得失敗時欄位為 null，不影響儲存）
+            weatherCondition: _weatherResult?.condition,
+            weatherDescription: _weatherResult?.description,
+            temperature: _weatherResult?.temperature,
+            humidity: _weatherResult?.humidity,
+            weatherIcon: _weatherResult?.icon,
           );
 
       if (mounted) {
@@ -515,6 +559,19 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
                 label: Text(l10n.pickOnMap),
               ),
 
+              // ── 天氣資訊區塊（有座標後才顯示）──────────────────────────
+              if (_latController.text.isNotEmpty &&
+                  _lngController.text.isNotEmpty) ...[
+                _SectionHeader('天氣資訊'),
+                _WeatherSection(
+                  isLoading: _isLoadingWeather,
+                  result: _weatherResult,
+                  failed: _weatherFetchFailed,
+                  onRetry: _fetchWeather,
+                ),
+                const SizedBox(height: 4),
+              ],
+
               _SectionHeader(l10n.travelNotes),
 
               TextFormField(
@@ -570,6 +627,160 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
 }
 
 // ── 私有子元件 ────────────────────────────────────────────────────────────────
+
+/// 天氣資訊顯示區塊：loading / 成功卡片 / 失敗提示 三種狀態。
+class _WeatherSection extends StatelessWidget {
+  const _WeatherSection({
+    required this.isLoading,
+    required this.result,
+    required this.failed,
+    required this.onRetry,
+  });
+
+  final bool isLoading;
+  final WeatherResult? result;
+  final bool failed;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    // 載入中
+    if (isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 10),
+            Text('取得天氣中…', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    // 取得失敗
+    if (failed && result == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_off_outlined, size: 16, color: Colors.grey),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                '天氣資訊取得失敗，可手動略過',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+            ),
+            TextButton(
+              onPressed: onRetry,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('重新取得', style: TextStyle(fontSize: 13)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 有資料：顯示天氣卡片
+    if (result != null) {
+      return _WeatherCard(result: result!, onRetry: onRetry);
+    }
+
+    // 初始狀態（座標剛填入但尚未觸發 fetch）
+    return const SizedBox.shrink();
+  }
+}
+
+/// 天氣資訊卡片：圖示 + 描述 + 溫度 + 濕度 + 重新取得按鈕。
+class _WeatherCard extends StatelessWidget {
+  const _WeatherCard({required this.result, required this.onRetry});
+
+  final WeatherResult result;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 標頭列：「天氣資訊」 + 重新取得按鈕
+          Row(
+            children: [
+              const Icon(Icons.wb_cloudy_outlined, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                '天氣資訊',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: onRetry,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('重新取得', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // 資料列：天氣圖示 + 描述 + 溫度 + 濕度
+          Row(
+            children: [
+              WeatherIconWidget(
+                condition: result.icon,
+                size: 28,
+                showLabel: false,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                result.description,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(width: 16),
+              const Icon(Icons.thermostat_outlined, size: 16, color: Colors.grey),
+              const SizedBox(width: 2),
+              Text(
+                '${result.temperature}°C',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(width: 16),
+              const Icon(Icons.water_drop_outlined, size: 16, color: Colors.grey),
+              const SizedBox(width: 2),
+              Text(
+                '濕度 ${result.humidity}%',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title);
