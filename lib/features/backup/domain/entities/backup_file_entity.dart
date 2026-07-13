@@ -14,4 +14,12 @@ class BackupFileEntity {
 
   /// 本機儲存路徑（僅在剛建立備份時有值；從清單讀取的項目為 null）
   final String? localPath;
+
+  BackupFileEntity copyWith({String? localPath}) => BackupFileEntity(
+        id: id,
+        name: name,
+        sizeBytes: sizeBytes,
+        createdTime: createdTime,
+        localPath: localPath ?? this.localPath,
+      );
 }

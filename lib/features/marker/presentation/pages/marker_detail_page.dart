@@ -1064,12 +1064,14 @@ class _PhotoViewerPage extends StatefulWidget {
 class _PhotoViewerPageState extends State<_PhotoViewerPage> {
   late final PageController _ctrl;
   late int _index;
+  late final List<bool> _fileExists;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialIndex;
     _ctrl = PageController(initialPage: widget.initialIndex);
+    _fileExists = widget.photos.map((p) => File(p).existsSync()).toList();
   }
 
   @override
@@ -1105,8 +1107,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
         itemCount: widget.photos.length,
         onPageChanged: (i) => setState(() => _index = i),
         itemBuilder: (_, i) {
-          final file = File(widget.photos[i]);
-          if (!file.existsSync()) {
+          if (!_fileExists[i]) {
             return const Center(
               child: Icon(Icons.broken_image_outlined,
                   color: Colors.white38, size: 64),
@@ -1116,7 +1117,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
             minScale: 0.5,
             maxScale: 5.0,
             child: Center(
-              child: Image.file(file, fit: BoxFit.contain),
+              child: Image.file(File(widget.photos[i]), fit: BoxFit.contain),
             ),
           );
         },

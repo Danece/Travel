@@ -34,6 +34,8 @@ class MapPage extends ConsumerStatefulWidget {
 }
 
 class _MapPageState extends ConsumerState<MapPage> with TickerProviderStateMixin {
+  static final _capitalCountries = kCountryCapitals.keys.toList();
+
   // ── 地圖控制器 ─────────────────────────────────────────────────────────────
   GoogleMapController? _mapController;
 
@@ -417,7 +419,6 @@ class _MapPageState extends ConsumerState<MapPage> with TickerProviderStateMixin
   void _showGoToCapitalSheet() {
     final l10n = AppLocalizations.of(context);
     final isZh = !l10n.isEn;
-    final countries = kCountryCapitals.keys.toList();
 
     showModalBottomSheet<void>(
       context: context,
@@ -433,15 +434,7 @@ class _MapPageState extends ConsumerState<MapPage> with TickerProviderStateMixin
           expand: false,
           builder: (_, scrollController) => Column(
             children: [
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const _DragHandle(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Text(
@@ -456,9 +449,9 @@ class _MapPageState extends ConsumerState<MapPage> with TickerProviderStateMixin
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
-                  itemCount: countries.length,
+                  itemCount: _capitalCountries.length,
                   itemBuilder: (_, i) {
-                    final en = countries[i];
+                    final en = _capitalCountries[i];
                     final display = countryDisplayName(en, isZh: isZh);
                     final flag = countryFlag(en);
                     return ListTile(
@@ -874,15 +867,7 @@ class _FilterSheetState extends State<_FilterSheet> {
       expand: false,
       builder: (_, scrollController) => Column(
         children: [
-          Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          const _DragHandle(),
 
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -1091,4 +1076,19 @@ class _FilterBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DragHandle extends StatelessWidget {
+  const _DragHandle();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 36,
+        height: 4,
+        margin: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey[300],
+          borderRadius: BorderRadius.circular(2),
+        ),
+      );
 }

@@ -15,6 +15,8 @@ const _driveFolderName = 'TravelMark';
 const _folderMime = 'application/vnd.google-apps.folder';
 const _fileFields = 'id,name,size,createdTime';
 const _maxBackups = 5;
+const _kDbEntryName = 'travel_mark.db';
+const _kPhotosPrefix = 'photos/';
 
 class BackupRepositoryImpl implements BackupRepository {
   // ══════════════════════════════════════════════════════════════════════════
@@ -56,13 +58,7 @@ class BackupRepositoryImpl implements BackupRepository {
       // 4. 保留最近 _maxBackups 份，刪除其餘舊檔
       await _pruneOldBackups(api, folderId);
 
-      return BackupFileEntity(
-        id: entity.id,
-        name: entity.name,
-        sizeBytes: entity.sizeBytes,
-        createdTime: entity.createdTime,
-        localPath: localPath,
-      );
+      return entity.copyWith(localPath: localPath);
     } finally {
       // 5. 清理暫存 ZIP（成功或失敗皆執行）
       final tmp = File(tempZipPath);
@@ -109,9 +105,9 @@ class BackupRepositoryImpl implements BackupRepository {
         if (!file.isFile) continue;
         final data = file.content as List<int>;
 
-        if (file.name == 'travel_mark.db') {
+        if (file.name == _kDbEntryName) {
           await File(dbPath).writeAsBytes(data);
-        } else if (file.name.startsWith('photos/')) {
+        } else if (file.name.startsWith(_kPhotosPrefix)) {
           final photoPath = p.join(docsDir.path, file.name);
           await Directory(p.dirname(photoPath)).create(recursive: true);
           await File(photoPath).writeAsBytes(data);
@@ -216,13 +212,8 @@ class BackupRepositoryImpl implements BackupRepository {
 
   /// 複製暫存 ZIP 到本機 Downloads，回傳目標路徑
   Future<String> _copyToDownloads(String srcPath, String fileName) async {
-    Directory dir;
-    try {
-      dir = (await getDownloadsDirectory()) ??
-          await getApplicationDocumentsDirectory();
-    } catch (_) {
-      dir = await getApplicationDocumentsDirectory();
-    }
+    final dir = (await getDownloadsDirectory()) ??
+        await getApplicationDocumentsDirectory();
     if (!dir.existsSync()) await dir.create(recursive: true);
     final destPath = p.join(dir.path, fileName);
     await File(srcPath).copy(destPath);

@@ -14,8 +14,7 @@ const List<String> kCommonCountries = [
   'Egypt', 'Morocco',
 ];
 
-// 英文 → 繁體中文對照
-const Map<String, String> kEnToZh = {
+const Map<String, String> _kEnToZh = {
   'Taiwan': '台灣', 'Japan': '日本', 'South Korea': '南韓', 'China': '中國',
   'Hong Kong': '香港', 'Macau': '澳門', 'Mongolia': '蒙古',
   'Thailand': '泰國', 'Vietnam': '越南', 'Singapore': '新加坡',
@@ -39,7 +38,7 @@ const Map<String, String> kEnToZh = {
 
 /// 依語系回傳顯示名稱（資料庫固定存英文）
 String countryDisplayName(String enName, {required bool isZh}) =>
-    isZh ? (kEnToZh[enName] ?? enName) : enName;
+    isZh ? (_kEnToZh[enName] ?? enName) : enName;
 
 const Map<String, String> _kCountryFlags = {
   // English names
