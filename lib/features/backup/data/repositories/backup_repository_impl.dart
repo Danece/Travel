@@ -1,7 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -12,18 +11,9 @@ import '../../../../core/services/google_auth_service.dart';
 import '../../domain/entities/backup_file_entity.dart';
 import '../../domain/repositories/backup_repository.dart';
 
-// ── 常數 ──────────────────────────────────────────────────────────────────────
-
-/// Drive 上用來存放備份的資料夾名稱
 const _driveFolderName = 'TravelMark';
-
-/// Drive 資料夾的 MIME Type
 const _folderMime = 'application/vnd.google-apps.folder';
-
-/// Drive 查詢時要求回傳的欄位
 const _fileFields = 'id,name,size,createdTime';
-
-/// 每次上傳後保留的最多備份數量
 const _maxBackups = 5;
 
 class BackupRepositoryImpl implements BackupRepository {
@@ -32,20 +22,16 @@ class BackupRepositoryImpl implements BackupRepository {
   // ══════════════════════════════════════════════════════════════════════════
 
   /// 流程：
-  ///   1. 取得已驗證的 Drive API
-  ///   2. 找到（或建立）TravelMark 資料夾
-  ///   3. 壓縮 DB + photos/ 成 ZIP
-  ///   4. 上傳 ZIP 到 Drive
-  ///   5. 刪除超過 _maxBackups 的舊備份
+  ///   1. 使用 ZipFileEncoder 逐檔壓縮至暫存 ZIP（不把所有照片載入記憶體）
+  ///   2. 複製暫存 ZIP 到本機 Downloads
+  ///   3. 從暫存 ZIP 串流上傳至 Drive（不把整個 ZIP 載入記憶體）
+  ///   4. 刪除超過 _maxBackups 的舊備份
+  ///   5. 清理暫存 ZIP
   @override
   Future<BackupFileEntity> createBackup() async {
     final api = await _getDriveApi();
     final folderId = await _getOrCreateFolder(api);
 
-    // 組裝 ZIP 位元組
-    final zipBytes = await _buildZip();
-
-    // 以時間戳建立檔名
     final now = DateTime.now();
     final stamp =
         '${now.year}'
@@ -57,13 +43,31 @@ class BackupRepositoryImpl implements BackupRepository {
         '${now.second.toString().padLeft(2, '0')}';
     final fileName = 'backup_$stamp.zip';
 
-    // 上傳
-    final entity = await _uploadFile(api, folderId, zipBytes, fileName);
+    // 1. 逐檔壓縮到暫存 ZIP，不佔大量記憶體
+    final tempZipPath = await _buildZipFile(fileName);
 
-    // 保留最近 _maxBackups 份，刪除其餘舊檔
-    await _pruneOldBackups(api, folderId);
+    try {
+      // 2. 複製到本機 Downloads
+      final localPath = await _copyToDownloads(tempZipPath, fileName);
 
-    return entity;
+      // 3. 從暫存 ZIP 串流上傳至 Drive
+      final entity = await _uploadFromFile(api, folderId, tempZipPath, fileName);
+
+      // 4. 保留最近 _maxBackups 份，刪除其餘舊檔
+      await _pruneOldBackups(api, folderId);
+
+      return BackupFileEntity(
+        id: entity.id,
+        name: entity.name,
+        sizeBytes: entity.sizeBytes,
+        createdTime: entity.createdTime,
+        localPath: localPath,
+      );
+    } finally {
+      // 5. 清理暫存 ZIP（成功或失敗皆執行）
+      final tmp = File(tempZipPath);
+      if (tmp.existsSync()) await tmp.delete();
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -71,46 +75,53 @@ class BackupRepositoryImpl implements BackupRepository {
   // ══════════════════════════════════════════════════════════════════════════
 
   /// 流程：
-  ///   1. 從 Drive 下載指定 fileId 的 ZIP
-  ///   2. 解壓縮
-  ///   3. 關閉 DB → 覆蓋 DB 檔案 → 恢復連線
-  ///   4. 覆寫 photos/ 照片
+  ///   1. 串流下載 ZIP 至暫存檔（不把整個 ZIP 載入記憶體）
+  ///   2. 從暫存檔解壓縮 DB 與照片
+  ///   3. 清理暫存檔
   @override
   Future<void> restoreBackup(String fileId) async {
     final api = await _getDriveApi();
 
-    // 下載 ZIP bytes
-    final response = await api.files.get(
-      fileId,
-      downloadOptions: drive.DownloadOptions.fullMedia,
-    ) as drive.Media;
+    final tempDir = await getTemporaryDirectory();
+    final tempZipPath = p.join(tempDir.path, 'restore_temp.zip');
 
-    final chunks = <int>[];
-    await response.stream.forEach(chunks.addAll);
-    final archive = ZipDecoder().decodeBytes(Uint8List.fromList(chunks));
+    try {
+      // 1. 串流下載至暫存檔
+      final response = await api.files.get(
+        fileId,
+        downloadOptions: drive.DownloadOptions.fullMedia,
+      ) as drive.Media;
 
-    // 關閉 DB 連線，讓檔案可被覆寫
-    await DatabaseHelper.instance.closeDatabase();
+      final sink = File(tempZipPath).openWrite();
+      await response.stream.pipe(sink);
+      await sink.close();
 
-    final dbPath = await DatabaseHelper.instance.getDatabasePath();
-    final docsDir = await getApplicationDocumentsDirectory();
+      // 2. 從暫存檔解壓縮（逐檔讀取，記憶體只需容納單一檔案）
+      final inputStream = InputFileStream(tempZipPath);
+      final archive = ZipDecoder().decodeBuffer(inputStream);
+      inputStream.close();
 
-    for (final file in archive) {
-      if (!file.isFile) continue;
+      await DatabaseHelper.instance.closeDatabase();
+      final dbPath = await DatabaseHelper.instance.getDatabasePath();
+      final docsDir = await getApplicationDocumentsDirectory();
 
-      final data = file.content as List<int>;
+      for (final file in archive) {
+        if (!file.isFile) continue;
+        final data = file.content as List<int>;
 
-      if (file.name == 'travel_mark.db') {
-        // 還原主資料庫
-        await File(dbPath).writeAsBytes(data);
-      } else if (file.name.startsWith('photos/')) {
-        // 還原照片（保留相對路徑結構）
-        final photoPath = p.join(docsDir.path, file.name);
-        await Directory(p.dirname(photoPath)).create(recursive: true);
-        await File(photoPath).writeAsBytes(data);
+        if (file.name == 'travel_mark.db') {
+          await File(dbPath).writeAsBytes(data);
+        } else if (file.name.startsWith('photos/')) {
+          final photoPath = p.join(docsDir.path, file.name);
+          await Directory(p.dirname(photoPath)).create(recursive: true);
+          await File(photoPath).writeAsBytes(data);
+        }
       }
+    } finally {
+      // 3. 清理暫存 ZIP
+      final tmp = File(tempZipPath);
+      if (tmp.existsSync()) await tmp.delete();
     }
-    // DB 連線會在下次 DatabaseHelper.instance.database 呼叫時自動重建
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -146,16 +157,12 @@ class BackupRepositoryImpl implements BackupRepository {
   // 私有輔助方法
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// 取得已驗證的 DriveApi；未登入時拋出 [LocalFailure]
   Future<drive.DriveApi> _getDriveApi() async {
     final client = await GoogleAuthService.instance.getAuthenticatedClient();
-    if (client == null) {
-      throw const LocalFailure('請先登入 Google 帳號後再進行備份');
-    }
+    if (client == null) throw const LocalFailure('請先登入 Google 帳號後再進行備份');
     return drive.DriveApi(client);
   }
 
-  /// 取得（或建立）Drive 上的 TravelMark 資料夾，回傳資料夾 ID
   Future<String> _getOrCreateFolder(drive.DriveApi api) async {
     final q =
         'name = \'$_driveFolderName\' '
@@ -168,63 +175,75 @@ class BackupRepositoryImpl implements BackupRepository {
       $fields: 'files(id)',
     );
 
-    if (result.files?.isNotEmpty == true) {
-      return result.files!.first.id!;
-    }
+    if (result.files?.isNotEmpty == true) return result.files!.first.id!;
 
-    // 資料夾不存在，建立一個
     final folder = drive.File()
       ..name = _driveFolderName
       ..mimeType = _folderMime;
-
     final created = await api.files.create(folder, $fields: 'id');
     return created.id!;
   }
 
-  /// 壓縮本機 DB + photos/ 資料夾成 ZIP，回傳位元組陣列
-  Future<List<int>> _buildZip() async {
-    final archive = Archive();
+  /// ZipFileEncoder 逐檔壓縮到暫存目錄，記憶體只需容納單一檔案
+  /// DB → 存為 'travel_mark.db'；photos/ → 存為 'photos/filename'
+  Future<String> _buildZipFile(String fileName) async {
+    final tempDir = await getTemporaryDirectory();
+    final zipPath = p.join(tempDir.path, fileName);
 
-    // ── 加入主資料庫 ──────────────────────────────────────────────────────
-    final dbPath = await DatabaseHelper.instance.getDatabasePath();
-    final dbFile = File(dbPath);
-    if (dbFile.existsSync()) {
-      final bytes = await dbFile.readAsBytes();
-      archive.addFile(ArchiveFile('travel_mark.db', bytes.length, bytes));
-    }
+    final encoder = ZipFileEncoder();
+    encoder.open(zipPath);
 
-    // ── 加入 photos/ 資料夾內所有照片 ─────────────────────────────────────
-    final docsDir = await getApplicationDocumentsDirectory();
-    final photosDir = Directory(p.join(docsDir.path, 'photos'));
-    if (photosDir.existsSync()) {
-      for (final entity in photosDir.listSync()) {
-        if (entity is! File) continue;
-        final bytes = await entity.readAsBytes();
-        final name = p.basename(entity.path);
-        archive.addFile(ArchiveFile('photos/$name', bytes.length, bytes));
+    try {
+      // 加入主資料庫（basename = travel_mark.db）
+      final dbPath = await DatabaseHelper.instance.getDatabasePath();
+      final dbFile = File(dbPath);
+      if (dbFile.existsSync()) {
+        encoder.addFile(dbFile);
       }
+
+      // 加入 photos/ 資料夾（includeDirName: true → 壓縮為 photos/filename）
+      final docsDir = await getApplicationDocumentsDirectory();
+      final photosDir = Directory(p.join(docsDir.path, 'photos'));
+      if (photosDir.existsSync()) {
+        encoder.addDirectory(photosDir, includeDirName: true);
+      }
+    } finally {
+      encoder.close();
     }
 
-    final encoded = ZipEncoder().encode(archive);
-    if (encoded == null) throw const LocalFailure('ZIP 壓縮失敗，請重試');
-    return encoded;
+    return zipPath;
   }
 
-  /// 上傳 ZIP 到指定資料夾，回傳 BackupFileEntity
-  Future<BackupFileEntity> _uploadFile(
+  /// 複製暫存 ZIP 到本機 Downloads，回傳目標路徑
+  Future<String> _copyToDownloads(String srcPath, String fileName) async {
+    Directory dir;
+    try {
+      dir = (await getDownloadsDirectory()) ??
+          await getApplicationDocumentsDirectory();
+    } catch (_) {
+      dir = await getApplicationDocumentsDirectory();
+    }
+    if (!dir.existsSync()) await dir.create(recursive: true);
+    final destPath = p.join(dir.path, fileName);
+    await File(srcPath).copy(destPath);
+    return destPath;
+  }
+
+  /// 從本機 ZIP 檔串流上傳至 Drive，不需將整個檔案載入記憶體
+  Future<BackupFileEntity> _uploadFromFile(
     drive.DriveApi api,
     String folderId,
-    List<int> zipBytes,
+    String zipPath,
     String fileName,
   ) async {
+    final file = File(zipPath);
+    final size = await file.length();
+
     final metadata = drive.File()
       ..name = fileName
       ..parents = [folderId];
 
-    final media = drive.Media(
-      Stream.fromIterable([zipBytes]),
-      zipBytes.length,
-    );
+    final media = drive.Media(file.openRead(), size);
 
     final created = await api.files.create(
       metadata,
@@ -235,11 +254,7 @@ class BackupRepositoryImpl implements BackupRepository {
     return _toEntity(created);
   }
 
-  /// 保留最新 _maxBackups 份，刪除多餘的舊備份
-  Future<void> _pruneOldBackups(
-    drive.DriveApi api,
-    String folderId,
-  ) async {
+  Future<void> _pruneOldBackups(drive.DriveApi api, String folderId) async {
     final result = await api.files.list(
       q: "'$folderId' in parents and trashed = false",
       orderBy: 'createdTime desc',
@@ -255,7 +270,6 @@ class BackupRepositoryImpl implements BackupRepository {
     }
   }
 
-  /// 將 Drive File 物件轉為 BackupFileEntity
   BackupFileEntity _toEntity(drive.File file) => BackupFileEntity(
         id: file.id ?? '',
         name: file.name ?? '',

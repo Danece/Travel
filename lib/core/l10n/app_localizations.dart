@@ -193,6 +193,9 @@ class AppLocalizations {
       isEn ? 'Overwrite all data with "$name".\nThis cannot be undone. Continue?' : '將以「$name」覆蓋目前所有資料。\n此操作無法復原，確定繼續嗎？';
   String get confirmRestoreBtn => isEn ? 'Restore' : '確認還原';
   String backupDone(String name) => isEn ? 'Backup complete: $name' : '備份完成：$name';
+  String backupDoneWithPath(String name, String path) =>
+      isEn ? 'Saved to $path\nUploaded to Google Drive: $name'
+           : '已儲存至 $path\n並同步至 Google Drive：$name';
   String get deleteFailed => isEn ? 'Delete failed, please try again' : '刪除失敗，請重試';
   String get restoreSuccess => isEn ? 'Restore successful! All marker data updated' : '還原成功！所有地標資料已更新';
   String get signInCancelled => isEn ? 'Google sign-in cancelled or failed, please try again' : 'Google 登入取消或失敗，請重試';
@@ -239,6 +242,8 @@ class AppLocalizations {
   String mapFilterActive(String s) => isEn ? 'Filtered: $s' : '篩選中：$s';
   String get resetFilter => isEn ? 'Reset' : '重置';
   String get applyFilter => isEn ? 'Apply Filter' : '套用篩選';
+  String get goToCapital => isEn ? 'Go to Capital' : '前往首都';
+  String get selectCountryCapital => isEn ? 'Select a country to navigate' : '選擇國家前往首都';
 
   // ── Rating labels ─────────────────────────────────────────────────────────
   List<String> get ratingLabels => isEn

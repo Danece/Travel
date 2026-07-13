@@ -53,8 +53,8 @@ class BackupNotifier extends _$BackupNotifier {
 
   // ── 建立備份 ────────────────────────────────────────────────────────────────
 
-  /// 壓縮並上傳至 Drive，成功時回傳備份名稱供 UI 顯示
-  Future<String?> createBackup() async {
+  /// 壓縮並上傳至 Drive，成功時回傳 BackupFileEntity（含本機路徑）供 UI 顯示
+  Future<BackupFileEntity?> createBackup() async {
     state = const AsyncLoading();
 
     final result = await AsyncValue.guard<BackupFileEntity>(
@@ -69,7 +69,7 @@ class BackupNotifier extends _$BackupNotifier {
       return null;
     }
 
-    return result.valueOrNull?.name;
+    return result.valueOrNull;
   }
 
   // ── 還原備份 ────────────────────────────────────────────────────────────────

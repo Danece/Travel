@@ -152,17 +152,20 @@ class _BackupPageState extends ConsumerState<BackupPage> {
     final l10n = AppLocalizations.of(context);
     setState(() => _isOperating = true);
 
-    final name =
+    final entity =
         await ref.read(backupNotifierProvider.notifier).createBackup();
 
     if (!mounted) return;
     setState(() => _isOperating = false);
 
-    if (name != null) {
+    if (entity != null) {
+      final msg = entity.localPath != null
+          ? l10n.backupDoneWithPath(entity.name, entity.localPath!)
+          : l10n.backupDone(entity.name);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.backupDone(name)),
-          duration: const Duration(seconds: 5),
+          content: Text(msg),
+          duration: const Duration(seconds: 6),
           action: SnackBarAction(label: l10n.gotIt, onPressed: () {}),
         ),
       );

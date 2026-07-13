@@ -9,6 +9,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
+import '../../../../core/utils/country_capitals.dart';
 import '../../../../core/utils/country_flag.dart';
 import '../../../marker/domain/entities/marker_entity.dart';
 import '../../../marker/presentation/pages/marker_detail_page.dart';
@@ -411,6 +412,79 @@ class _MapPageState extends ConsumerState<MapPage> with TickerProviderStateMixin
     setState(() => _selectedMarker = null);
   }
 
+  // ── 前往首都 ──────────────────────────────────────────────────────────────
+
+  void _showGoToCapitalSheet() {
+    final l10n = AppLocalizations.of(context);
+    final isZh = !l10n.isEn;
+    final countries = kCountryCapitals.keys.toList();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (_, scrollController) => Column(
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Text(
+                  l10n.selectCountryCapital,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: countries.length,
+                  itemBuilder: (_, i) {
+                    final en = countries[i];
+                    final display = countryDisplayName(en, isZh: isZh);
+                    final flag = countryFlag(en);
+                    return ListTile(
+                      leading: Text(flag,
+                          style: const TextStyle(fontSize: 22)),
+                      title: Text(display),
+                      onTap: () {
+                        Navigator.pop(context);
+                        final target = kCountryCapitals[en]!;
+                        _mapController?.animateCamera(
+                          CameraUpdate.newCameraPosition(
+                            CameraPosition(target: target, zoom: 6),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // ── 篩選 BottomSheet ──────────────────────────────────────────────────────
 
   void _showFilterSheet() {
@@ -466,6 +540,11 @@ class _MapPageState extends ConsumerState<MapPage> with TickerProviderStateMixin
       appBar: AppBar(
         title: Text(l10n.mapPageTitle),
         actions: [
+          IconButton(
+            tooltip: l10n.goToCapital,
+            icon: const Icon(Icons.travel_explore_rounded),
+            onPressed: _showGoToCapitalSheet,
+          ),
           Stack(
             alignment: Alignment.center,
             children: [

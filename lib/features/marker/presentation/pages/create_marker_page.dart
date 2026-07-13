@@ -15,21 +15,6 @@ import '../providers/marker_provider.dart';
 import 'map_picker_page.dart';
 
 
-const List<String> _kCommonCountries = [
-  'Taiwan', 'Japan', 'South Korea', 'China', 'Hong Kong', 'Macau', 'Mongolia',
-  'Thailand', 'Vietnam', 'Singapore', 'Malaysia', 'Indonesia',
-  'Philippines', 'Cambodia', 'Myanmar',
-  'India', 'Nepal', 'Sri Lanka', 'Maldives', 'Bhutan',
-  'United Kingdom', 'France', 'Germany', 'Italy', 'Spain',
-  'Portugal', 'Netherlands', 'Switzerland', 'Austria', 'Belgium',
-  'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland',
-  'Czech Republic', 'Hungary', 'Greece', 'Croatia', 'Iceland',
-  'United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Peru',
-  'Australia', 'New Zealand',
-  'UAE', 'Israel',
-  'Egypt', 'Morocco',
-];
-
 const int _kMaxPhotos = 10;
 
 class CreateMarkerPage extends ConsumerStatefulWidget {
@@ -331,7 +316,7 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
                 ),
                 isExpanded: true,
                 hint: Text(l10n.selectCountry),
-                items: _kCommonCountries
+                items: kCommonCountries
                     .map((c) => DropdownMenuItem(
                           value: c,
                           child: Row(
@@ -339,12 +324,15 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
                               Text(countryFlag(c),
                                   style: const TextStyle(fontSize: 20)),
                               const SizedBox(width: 10),
-                              Expanded(child: Text(c)),
+                              Expanded(
+                                child: Text(countryDisplayName(c,
+                                    isZh: !l10n.isEn)),
+                              ),
                             ],
                           ),
                         ))
                     .toList(),
-                selectedItemBuilder: (context) => _kCommonCountries
+                selectedItemBuilder: (context) => kCommonCountries
                     .map((c) => Align(
                           alignment: Alignment.centerLeft,
                           child: Row(
@@ -353,7 +341,7 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
                               Text(countryFlag(c),
                                   style: const TextStyle(fontSize: 20)),
                               const SizedBox(width: 8),
-                              Text(c),
+                              Text(countryDisplayName(c, isZh: !l10n.isEn)),
                             ],
                           ),
                         ))

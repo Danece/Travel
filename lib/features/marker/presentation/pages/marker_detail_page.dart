@@ -15,21 +15,6 @@ import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
 import 'map_picker_page.dart';
 
-const List<String> _kCountries = [
-  'Taiwan', 'Japan', 'South Korea', 'China', 'Hong Kong', 'Macau', 'Mongolia',
-  'Thailand', 'Vietnam', 'Singapore', 'Malaysia', 'Indonesia',
-  'Philippines', 'Cambodia', 'Myanmar',
-  'India', 'Nepal', 'Sri Lanka', 'Maldives', 'Bhutan',
-  'United Kingdom', 'France', 'Germany', 'Italy', 'Spain',
-  'Portugal', 'Netherlands', 'Switzerland', 'Austria', 'Belgium',
-  'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland',
-  'Czech Republic', 'Hungary', 'Greece', 'Croatia', 'Iceland',
-  'United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Peru',
-  'Australia', 'New Zealand',
-  'UAE', 'Israel',
-  'Egypt', 'Morocco',
-];
-
 const int _kMaxPhotos = 10;
 
 // ── 地標詳情頁 ────────────────────────────────────────────────────────────────
@@ -244,6 +229,14 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
                     pageController: _pageController,
                     currentIndex: _photoIndex,
                     onPageChanged: (i) => setState(() => _photoIndex = i),
+                    onTapPhoto: (i) => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => _PhotoViewerPage(
+                          photos: photos,
+                          initialIndex: i,
+                        ),
+                      ),
+                    ),
                     onLongPressPhoto: _removePhoto,
                     l10n: l10n,
                   ),
@@ -280,6 +273,7 @@ class _PhotoSection extends StatelessWidget {
     required this.pageController,
     required this.currentIndex,
     required this.onPageChanged,
+    required this.onTapPhoto,
     required this.onLongPressPhoto,
     required this.l10n,
   });
@@ -288,6 +282,7 @@ class _PhotoSection extends StatelessWidget {
   final PageController pageController;
   final int currentIndex;
   final ValueChanged<int> onPageChanged;
+  final ValueChanged<int> onTapPhoto;
   final ValueChanged<int> onLongPressPhoto;
   final AppLocalizations l10n;
 
@@ -326,6 +321,7 @@ class _PhotoSection extends StatelessWidget {
             itemCount: photos.length,
             onPageChanged: onPageChanged,
             itemBuilder: (_, i) => GestureDetector(
+              onTap: () => onTapPhoto(i),
               onLongPress: () => onLongPressPhoto(i),
               child: File(photos[i]).existsSync()
                   ? Image.file(
@@ -791,10 +787,10 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Include stored country even if it's not in _kCountries (e.g. CSV-imported data)
-    final dropdownCountries = (_country != null && !_kCountries.contains(_country))
-        ? [_country!, ..._kCountries]
-        : _kCountries;
+    // Include stored country even if it's not in kCommonCountries (e.g. CSV-imported data)
+    final dropdownCountries = (_country != null && !kCommonCountries.contains(_country))
+        ? [_country!, ...kCommonCountries]
+        : kCommonCountries;
 
     return Scaffold(
       appBar: AppBar(
@@ -843,7 +839,20 @@ class _EditMarkerPageState extends ConsumerState<EditMarkerPage> {
                 isExpanded: true,
                 hint: Text(l10n.selectCountry),
                 items: dropdownCountries
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                    .map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Row(
+                            children: [
+                              Text(countryFlag(c),
+                                  style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(countryDisplayName(c,
+                                    isZh: !l10n.isEn)),
+                              ),
+                            ],
+                          ),
+                        ))
                     .toList(),
                 onChanged: (v) => setState(() => _country = v),
                 validator: (v) => v == null ? l10n.countryRequired : null,
@@ -1032,6 +1041,85 @@ class _EditHeader extends StatelessWidget {
                 ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── 全螢幕照片查看器 ───────────────────────────────────────────────────────────
+
+class _PhotoViewerPage extends StatefulWidget {
+  const _PhotoViewerPage({
+    required this.photos,
+    required this.initialIndex,
+  });
+
+  final List<String> photos;
+  final int initialIndex;
+
+  @override
+  State<_PhotoViewerPage> createState() => _PhotoViewerPageState();
+}
+
+class _PhotoViewerPageState extends State<_PhotoViewerPage> {
+  late final PageController _ctrl;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _ctrl = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.black54,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_index + 1} / ${widget.photos.length}',
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w500),
+        ),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _ctrl,
+        itemCount: widget.photos.length,
+        onPageChanged: (i) => setState(() => _index = i),
+        itemBuilder: (_, i) {
+          final file = File(widget.photos[i]);
+          if (!file.existsSync()) {
+            return const Center(
+              child: Icon(Icons.broken_image_outlined,
+                  color: Colors.white38, size: 64),
+            );
+          }
+          return InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 5.0,
+            child: Center(
+              child: Image.file(file, fit: BoxFit.contain),
+            ),
+          );
+        },
       ),
     );
   }
