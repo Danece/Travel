@@ -3,15 +3,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../../core/constants/country_names.dart';
 import '../../../../core/l10n/app_localizations.dart';
 import '../../../../core/utils/country_flag.dart';
 import '../../domain/entities/marker_category.dart';
 import '../providers/marker_provider.dart';
+import '../models/map_picker_result.dart';
 import 'map_picker_page.dart';
 
 
@@ -34,6 +35,8 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
   final _dateController = TextEditingController();
 
   String? _selectedCountry;
+  /// true 表示國家為 Geocoding API 自動偵測填入，用於顯示提示圖示
+  bool _countryAutoDetected = false;
   DateTime _selectedDate = DateTime.now();
   int _rating = 3;
   MarkerCategory _category = MarkerCategory.attraction;
@@ -184,14 +187,33 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
   }
 
   Future<void> _openMapPicker() async {
-    final result = await Navigator.of(context).push<LatLng>(
+    final result = await Navigator.of(context).push<MapPickerResult>(
       MaterialPageRoute(builder: (_) => const MapPickerPage()),
     );
-    if (result != null && mounted) {
-      setState(() {
-        _latController.text = result.latitude.toStringAsFixed(6);
-        _lngController.text = result.longitude.toStringAsFixed(6);
-      });
+    if (result == null || !mounted) return;
+
+    // 更新座標欄位
+    setState(() {
+      _latController.text = result.latLng.latitude.toStringAsFixed(6);
+      _lngController.text = result.latLng.longitude.toStringAsFixed(6);
+    });
+
+    // 若 Geocoding API 成功偵測到國家，自動填入並提示用戶
+    final detected = result.detectedCountry;
+    if (detected != null) {
+      final en = toEnglishName(detected); // 中文 → 英文鍵（資料庫儲存值）
+      if (en != null && mounted) {
+        setState(() {
+          _selectedCountry = en;
+          _countryAutoDetected = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('已自動偵測國家：$detected'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -309,14 +331,26 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _selectedCountry,
+                initialValue: _selectedCountry,
                 decoration: InputDecoration(
                   labelText: l10n.countryField,
                   prefixIcon: const Icon(Icons.flag_outlined),
+                  // 自動偵測時顯示小圖示提示
+                  suffix: _countryAutoDetected
+                      ? const Tooltip(
+                          message: '已自動偵測',
+                          child: Icon(
+                            Icons.my_location,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
+                        )
+                      : null,
                 ),
                 isExpanded: true,
                 hint: Text(l10n.selectCountry),
-                items: kCommonCountries
+                // 選項列表：使用 countryNameMap 的完整國家清單
+                items: countryNameMap.keys
                     .map((c) => DropdownMenuItem(
                           value: c,
                           child: Row(
@@ -325,14 +359,15 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
                                   style: const TextStyle(fontSize: 20)),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Text(countryDisplayName(c,
-                                    isZh: !l10n.isEn)),
+                                child: Text(
+                                  l10n.isEn ? c : (countryNameMap[c] ?? c),
+                                ),
                               ),
                             ],
                           ),
                         ))
                     .toList(),
-                selectedItemBuilder: (context) => kCommonCountries
+                selectedItemBuilder: (context) => countryNameMap.keys
                     .map((c) => Align(
                           alignment: Alignment.centerLeft,
                           child: Row(
@@ -341,12 +376,15 @@ class _CreateMarkerPageState extends ConsumerState<CreateMarkerPage> {
                               Text(countryFlag(c),
                                   style: const TextStyle(fontSize: 20)),
                               const SizedBox(width: 8),
-                              Text(countryDisplayName(c, isZh: !l10n.isEn)),
+                              Text(l10n.isEn ? c : (countryNameMap[c] ?? c)),
                             ],
                           ),
                         ))
                     .toList(),
-                onChanged: (v) => setState(() => _selectedCountry = v),
+                onChanged: (v) => setState(() {
+                  _selectedCountry = v;
+                  _countryAutoDetected = false; // 手動選擇後清除自動偵測標記
+                }),
                 validator: (v) =>
                     v == null ? l10n.countryRequired : null,
               ),

@@ -1,28 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import '../../../../core/services/geocoding_service.dart';
+import '../models/map_picker_result.dart';
 
 // ── 地圖選點頁面 ───────────────────────────────────────────────────────────
 //
 // 使用流程：
 //   1. 開啟頁面時呼叫 GPS，取得當前位置並移動鏡頭
 //   2. 使用者拖動地圖，中央 pin 固定，底部即時顯示座標
-//   3. 點擊「確認此位置」後 Navigator.pop() 回傳 LatLng
+//   3. 點擊「確認此位置」→ 呼叫 Geocoding API 偵測國家（最多等 5 秒）
+//   4. Navigator.pop() 回傳 MapPickerResult（含座標與偵測到的國家）
 //
 // 呼叫範例：
-//   final result = await Navigator.of(context).push<LatLng>(
+//   final result = await Navigator.of(context).push<MapPickerResult>(
 //     MaterialPageRoute(builder: (_) => const MapPickerPage()),
 //   );
+//   if (result != null) {
+//     print(result.latLng);          // LatLng
+//     print(result.detectedCountry); // '台灣' 或 null
+//   }
 
-class MapPickerPage extends StatefulWidget {
+class MapPickerPage extends ConsumerStatefulWidget {
   const MapPickerPage({super.key});
 
   @override
-  State<MapPickerPage> createState() => _MapPickerPageState();
+  ConsumerState<MapPickerPage> createState() => _MapPickerPageState();
 }
 
-class _MapPickerPageState extends State<MapPickerPage> {
+class _MapPickerPageState extends ConsumerState<MapPickerPage> {
   // 預設座標：台北 101（無法取得 GPS 時的 fallback）
   static const _defaultLatLng = LatLng(25.0330, 121.5654);
   static const _defaultZoom = 15.0;
@@ -34,6 +43,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
   /// 是否正在取得 GPS 位置
   bool _isLocating = true;
+
+  /// 是否正在呼叫 Geocoding API 偵測國家（顯示確認按鈕 loading 狀態）
+  bool _isDetecting = false;
 
   /// 位置權限是否被拒絕（決定是否顯示 myLocationButton）
   bool _locationDenied = false;
@@ -170,6 +182,39 @@ class _MapPickerPageState extends State<MapPickerPage> {
     );
   }
 
+  // ── 確認位置並偵測國家 ────────────────────────────────────────────────────
+
+  /// 點擊「確認此位置」的處理流程：
+  ///   1. 顯示 loading 狀態，防止重複點擊
+  ///   2. 呼叫 Geocoding API 取得國家名稱（最多等待 5 秒）
+  ///   3. 將座標與偵測結果包裝為 MapPickerResult 後 pop
+  Future<void> _onConfirmLocation() async {
+    if (_isDetecting) return;
+    setState(() => _isDetecting = true);
+
+    final service = ref.read(geocodingServiceProvider);
+
+    // 超過 5 秒則放棄偵測，detectedCountry 以 null 回傳，不阻擋使用者
+    final detectedCountry = await service
+        .getCountryFromCoordinates(
+          _currentLatLng.latitude,
+          _currentLatLng.longitude,
+        )
+        .timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => null,
+        );
+
+    if (!mounted) return;
+
+    Navigator.of(context).pop(
+      MapPickerResult(
+        latLng: _currentLatLng,
+        detectedCountry: detectedCountry,
+      ),
+    );
+  }
+
   // ── 建構 UI ──────────────────────────────────────────────────────────────
 
   @override
@@ -259,8 +304,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
             bottom: 0,
             child: _BottomPanel(
               latLng: _currentLatLng,
-              // 確認時將目前座標 pop 回上一頁
-              onConfirm: () => Navigator.of(context).pop(_currentLatLng),
+              isDetecting: _isDetecting,
+              onConfirm: _onConfirmLocation,
             ),
           ),
         ],
@@ -309,10 +354,18 @@ class _LocatingBanner extends StatelessWidget {
 }
 
 /// 底部面板：顯示目前座標 + 確認按鈕
+///
+/// [isDetecting] 為 true 時，確認按鈕顯示 loading 並禁止點擊，
+/// 防止使用者在 Geocoding API 回應前重複觸發。
 class _BottomPanel extends StatelessWidget {
-  const _BottomPanel({required this.latLng, required this.onConfirm});
+  const _BottomPanel({
+    required this.latLng,
+    required this.isDetecting,
+    required this.onConfirm,
+  });
 
   final LatLng latLng;
+  final bool isDetecting;
   final VoidCallback onConfirm;
 
   @override
@@ -372,11 +425,20 @@ class _BottomPanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // 確認按鈕
+          // 確認按鈕：偵測國家中顯示 loading，完成後自動關閉頁面
           FilledButton.icon(
-            onPressed: onConfirm,
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text('確認此位置'),
+            onPressed: isDetecting ? null : onConfirm,
+            icon: isDetecting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.check_circle_outline),
+            label: Text(isDetecting ? '偵測國家中…' : '確認此位置'),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(50),
               shape: RoundedRectangleBorder(

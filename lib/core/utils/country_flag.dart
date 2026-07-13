@@ -59,8 +59,11 @@ const Map<String, String> _kCountryFlags = {
   'United States': '🇺🇸', 'Canada': '🇨🇦', 'Mexico': '🇲🇽',
   'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Peru': '🇵🇪',
   'Australia': '🇦🇺', 'New Zealand': '🇳🇿',
-  'UAE': '🇦🇪', 'Israel': '🇮🇱',
-  'Egypt': '🇪🇬', 'Morocco': '🇲🇦',
+  'UAE': '🇦🇪', 'United Arab Emirates': '🇦🇪', 'Israel': '🇮🇱', 'Jordan': '🇯🇴',
+  'Turkey': '🇹🇷',
+  'Egypt': '🇪🇬', 'Morocco': '🇲🇦', 'South Africa': '🇿🇦', 'Kenya': '🇰🇪',
+  'Russia': '🇷🇺',
+  'Ireland': '🇮🇪', 'Slovenia': '🇸🇮', 'Slovakia': '🇸🇰', 'Romania': '🇷🇴',
   // Chinese names
   '台灣': '🇹🇼', '日本': '🇯🇵', '南韓': '🇰🇷', '中國': '🇨🇳',
   '香港': '🇭🇰', '澳門': '🇲🇴', '蒙古': '🇲🇳',
@@ -79,8 +82,11 @@ const Map<String, String> _kCountryFlags = {
   '美國': '🇺🇸', '加拿大': '🇨🇦', '墨西哥': '🇲🇽',
   '巴西': '🇧🇷', '阿根廷': '🇦🇷', '秘魯': '🇵🇪',
   '澳洲': '🇦🇺', '紐西蘭': '🇳🇿',
-  '阿聯': '🇦🇪', '以色列': '🇮🇱',
-  '埃及': '🇪🇬', '摩洛哥': '🇲🇦',
+  '阿聯': '🇦🇪', '阿聯酋': '🇦🇪', '以色列': '🇮🇱', '約旦': '🇯🇴',
+  '土耳其': '🇹🇷',
+  '埃及': '🇪🇬', '摩洛哥': '🇲🇦', '南非': '🇿🇦', '肯亞': '🇰🇪',
+  '俄羅斯': '🇷🇺',
+  '愛爾蘭': '🇮🇪', '斯洛維尼亞': '🇸🇮', '斯洛伐克': '🇸🇰', '羅馬尼亞': '🇷🇴',
 };
 
 String countryFlag(String country) => _kCountryFlags[country] ?? '🌍';

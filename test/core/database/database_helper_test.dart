@@ -35,7 +35,7 @@ void main() {
 
   // ── 測試用資料工廠 ──────────────────────────────────────────────────────────
 
-  MarkerModel _marker({
+  MarkerModel marker({
     String id = 'm-001',
     String title = 'Tokyo Tower',
     String country = 'Japan',
@@ -64,7 +64,7 @@ void main() {
     });
 
     test('inserted marker is returned by getAll', () async {
-      final m = _marker();
+      final m = marker();
       await datasource.insert(m);
 
       final result = await datasource.getAll();
@@ -76,9 +76,9 @@ void main() {
     });
 
     test('multiple inserts are all returned', () async {
-      await datasource.insert(_marker(id: 'm-001', title: 'A'));
-      await datasource.insert(_marker(id: 'm-002', title: 'B'));
-      await datasource.insert(_marker(id: 'm-003', title: 'C'));
+      await datasource.insert(marker(id: 'm-001', title: 'A'));
+      await datasource.insert(marker(id: 'm-002', title: 'B'));
+      await datasource.insert(marker(id: 'm-003', title: 'C'));
 
       final result = await datasource.getAll();
       expect(result.length, 3);
@@ -114,7 +114,7 @@ void main() {
     });
 
     test('photoPaths are persisted and restored', () async {
-      final m = _marker(photoPaths: ['a.jpg', 'b.jpg', 'c.jpg']);
+      final m = marker(photoPaths: ['a.jpg', 'b.jpg', 'c.jpg']);
       await datasource.insert(m);
 
       final result = await datasource.getAll();
@@ -122,8 +122,8 @@ void main() {
     });
 
     test('inserting duplicate id throws', () async {
-      await datasource.insert(_marker(id: 'dup'));
-      expect(() => datasource.insert(_marker(id: 'dup')), throwsException);
+      await datasource.insert(marker(id: 'dup'));
+      expect(() => datasource.insert(marker(id: 'dup')), throwsException);
     });
   });
 
@@ -131,9 +131,9 @@ void main() {
 
   group('search — title LIKE', () {
     setUp(() async {
-      await datasource.insert(_marker(id: '1', title: 'Tokyo Tower'));
-      await datasource.insert(_marker(id: '2', title: 'Tokyo Skytree'));
-      await datasource.insert(_marker(id: '3', title: 'Eiffel Tower'));
+      await datasource.insert(marker(id: '1', title: 'Tokyo Tower'));
+      await datasource.insert(marker(id: '2', title: 'Tokyo Skytree'));
+      await datasource.insert(marker(id: '3', title: 'Eiffel Tower'));
     });
 
     test('partial title match returns correct results', () async {
@@ -168,10 +168,10 @@ void main() {
 
   group('search — countries IN', () {
     setUp(() async {
-      await datasource.insert(_marker(id: '1', country: 'Japan'));
-      await datasource.insert(_marker(id: '2', country: 'France'));
-      await datasource.insert(_marker(id: '3', country: 'Italy'));
-      await datasource.insert(_marker(id: '4', country: 'Japan'));
+      await datasource.insert(marker(id: '1', country: 'Japan'));
+      await datasource.insert(marker(id: '2', country: 'France'));
+      await datasource.insert(marker(id: '3', country: 'Italy'));
+      await datasource.insert(marker(id: '4', country: 'Japan'));
     });
 
     test('single country filter', () async {
@@ -212,9 +212,9 @@ void main() {
 
   group('search — minRating', () {
     setUp(() async {
-      await datasource.insert(_marker(id: '1', rating: 1));
-      await datasource.insert(_marker(id: '2', rating: 3));
-      await datasource.insert(_marker(id: '3', rating: 5));
+      await datasource.insert(marker(id: '1', rating: 1));
+      await datasource.insert(marker(id: '2', rating: 3));
+      await datasource.insert(marker(id: '3', rating: 5));
     });
 
     test('minRating 1 returns all', () async {
@@ -247,11 +247,11 @@ void main() {
   group('search — combined filters', () {
     setUp(() async {
       await datasource.insert(
-          _marker(id: '1', title: 'Mt Fuji', country: 'Japan', rating: 5));
+          marker(id: '1', title: 'Mt Fuji', country: 'Japan', rating: 5));
       await datasource.insert(
-          _marker(id: '2', title: 'Kyoto', country: 'Japan', rating: 3));
+          marker(id: '2', title: 'Kyoto', country: 'Japan', rating: 3));
       await datasource.insert(
-          _marker(id: '3', title: 'Eiffel', country: 'France', rating: 5));
+          marker(id: '3', title: 'Eiffel', country: 'France', rating: 5));
     });
 
     test('title + country narrows results', () async {
@@ -283,7 +283,7 @@ void main() {
 
   group('update', () {
     test('title update is reflected in getAll', () async {
-      await datasource.insert(_marker(id: 'm-1', title: 'Before'));
+      await datasource.insert(marker(id: 'm-1', title: 'Before'));
       final original = (await datasource.getAll()).first;
 
       final updated = MarkerModel(
@@ -304,7 +304,7 @@ void main() {
     });
 
     test('rating update is reflected in getById', () async {
-      await datasource.insert(_marker(id: 'u-1', rating: 2));
+      await datasource.insert(marker(id: 'u-1', rating: 2));
       final model = (await datasource.getById('u-1'))!;
 
       await datasource.update(
@@ -326,7 +326,7 @@ void main() {
     });
 
     test('update with new photoPaths is persisted', () async {
-      await datasource.insert(_marker(id: 'p-1', photoPaths: ['old.jpg']));
+      await datasource.insert(marker(id: 'p-1', photoPaths: ['old.jpg']));
       final model = (await datasource.getById('p-1'))!;
 
       await datasource.update(
@@ -348,7 +348,7 @@ void main() {
     });
 
     test('updating non-existent id does not throw', () async {
-      final ghost = _marker(id: 'ghost');
+      final ghost = marker(id: 'ghost');
       await expectLater(datasource.update(ghost), completes);
     });
   });
@@ -357,7 +357,7 @@ void main() {
 
   group('delete', () {
     test('deleted marker no longer appears in getAll', () async {
-      await datasource.insert(_marker(id: 'd-1'));
+      await datasource.insert(marker(id: 'd-1'));
       await datasource.delete('d-1');
 
       final result = await datasource.getAll();
@@ -365,16 +365,16 @@ void main() {
     });
 
     test('getById returns null after delete', () async {
-      await datasource.insert(_marker(id: 'd-2'));
+      await datasource.insert(marker(id: 'd-2'));
       await datasource.delete('d-2');
 
       expect(await datasource.getById('d-2'), isNull);
     });
 
     test('deleting one of many leaves the rest intact', () async {
-      await datasource.insert(_marker(id: 'keep-1'));
-      await datasource.insert(_marker(id: 'keep-2'));
-      await datasource.insert(_marker(id: 'remove'));
+      await datasource.insert(marker(id: 'keep-1'));
+      await datasource.insert(marker(id: 'keep-2'));
+      await datasource.insert(marker(id: 'remove'));
 
       await datasource.delete('remove');
 
