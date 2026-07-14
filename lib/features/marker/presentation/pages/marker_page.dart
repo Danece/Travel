@@ -11,6 +11,7 @@ import '../../../../core/widgets/weather_icon_widget.dart';
 import '../../domain/entities/marker_category.dart';
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
+import '../widgets/share_bottom_sheet.dart';
 import 'create_marker_page.dart';
 import 'marker_detail_page.dart';
 
@@ -429,6 +430,8 @@ class _MarkerPageState extends ConsumerState<MarkerPage> {
                             l10n: l10n,
                             onTap: () => _navigateToDetail(markers[i]),
                             onDelete: () => _deleteMarker(markers[i]),
+                            onShare: () =>
+                                showShareBottomSheet(context, markers[i]),
                           ),
                         ),
                       ),
@@ -516,12 +519,14 @@ class _MarkerCard extends StatelessWidget {
     required this.marker,
     required this.onTap,
     required this.onDelete,
+    required this.onShare,
     required this.l10n,
   });
 
   final MarkerEntity marker;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback onShare;
   final AppLocalizations l10n;
 
   @override
@@ -638,9 +643,27 @@ class _MarkerCard extends StatelessWidget {
                   ),
                 ),
 
-                Icon(
-                  Icons.chevron_right,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                // 分享按鈕 + 導向箭頭
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: IconButton(
+                        icon: const Icon(Icons.ios_share_outlined, size: 17),
+                        onPressed: onShare,
+                        tooltip: '分享',
+                        padding: EdgeInsets.zero,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ],
                 ),
               ],
             ),

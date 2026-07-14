@@ -15,6 +15,7 @@ import '../../domain/entities/marker_category.dart';
 import '../../domain/entities/marker_entity.dart';
 import '../providers/marker_provider.dart';
 import '../models/map_picker_result.dart';
+import '../widgets/share_bottom_sheet.dart';
 import 'map_picker_page.dart';
 
 const int _kMaxPhotos = 10;
@@ -206,6 +207,14 @@ class _MarkerDetailPageState extends ConsumerState<MarkerDetailPage> {
       appBar: AppBar(
         title: Text(_marker.title, overflow: TextOverflow.ellipsis),
         actions: [
+          // 分享旅遊卡片
+          IconButton(
+            tooltip: '分享旅遊卡片',
+            icon: const Icon(Icons.ios_share_outlined),
+            onPressed: _isBusy
+                ? null
+                : () => showShareBottomSheet(context, _marker),
+          ),
           IconButton(
             tooltip: l10n.editTooltip,
             icon: const Icon(Icons.edit_outlined),

@@ -8,6 +8,7 @@ import '../../../../core/widgets/weather_icon_widget.dart';
 import '../../../marker/domain/entities/marker_entity.dart';
 import '../../../marker/presentation/pages/create_marker_page.dart';
 import '../../../marker/presentation/pages/marker_detail_page.dart';
+import '../../../marker/presentation/widgets/share_bottom_sheet.dart';
 import '../../domain/entities/timeline_group_entity.dart';
 import '../providers/timeline_provider.dart';
 
@@ -158,6 +159,8 @@ class TimelinePage extends ConsumerWidget {
                                 // 從詳情頁返回後刷新（可能有編輯）
                                 ref.invalidate(timelineFilterProvider);
                               },
+                              onShare: () => showShareBottomSheet(
+                                  context, item.marker),
                             ),
                         };
                       },
@@ -350,10 +353,15 @@ class _MonthHeader extends StatelessWidget {
 
 /// 包含左側軌道（直徑 12 圓點）與右側標記卡片的完整列。
 class _MarkerCardRow extends StatelessWidget {
-  const _MarkerCardRow({required this.marker, required this.onTap});
+  const _MarkerCardRow({
+    required this.marker,
+    required this.onTap,
+    required this.onShare,
+  });
 
   final MarkerEntity marker;
   final VoidCallback onTap;
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -367,7 +375,7 @@ class _MarkerCardRow extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 6, 0, 6),
-              child: _MarkerCard(marker: marker, onTap: onTap),
+              child: _MarkerCard(marker: marker, onTap: onTap, onShare: onShare),
             ),
           ),
         ],
@@ -378,10 +386,15 @@ class _MarkerCardRow extends StatelessWidget {
 
 /// 標記卡片本體（Card + InkWell）。
 class _MarkerCard extends StatelessWidget {
-  const _MarkerCard({required this.marker, required this.onTap});
+  const _MarkerCard({
+    required this.marker,
+    required this.onTap,
+    required this.onShare,
+  });
 
   final MarkerEntity marker;
   final VoidCallback onTap;
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -481,6 +494,19 @@ class _MarkerCard extends StatelessWidget {
                           )),
                     ),
                   ],
+                ),
+              ),
+
+              // 分享按鈕（小型，置右對齊頂部）
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: IconButton(
+                  icon: const Icon(Icons.ios_share_outlined, size: 15),
+                  onPressed: onShare,
+                  tooltip: '分享',
+                  padding: EdgeInsets.zero,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
