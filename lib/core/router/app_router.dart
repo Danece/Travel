@@ -11,6 +11,7 @@ import '../../features/marker/presentation/pages/marker_detail_page.dart';
 import '../../features/marker/presentation/pages/marker_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
+import '../../features/timeline/presentation/pages/timeline_page.dart';
 
 part 'app_router.g.dart';
 
@@ -21,6 +22,7 @@ part 'app_router.g.dart';
 //   ShellRoute（底部導覽列 Shell）
 //   ├── /           → HomePage        首頁
 //   ├── /marker     → MarkerPage      標記列表
+//   ├── /timeline   → TimelinePage    時間軸
 //   ├── /map        → MapPage         地圖
 //   └── /settings   → SettingsPage    設定
 //
@@ -47,6 +49,8 @@ GoRouter appRouter(AppRouterRef ref) {
         routes: [
           GoRoute(path: '/', builder: (_, __) => const HomePage()),
           GoRoute(path: '/marker', builder: (_, __) => const MarkerPage()),
+          // 時間軸頁面：依年月分組顯示所有旅遊標記
+          GoRoute(path: '/timeline', builder: (_, __) => const TimelinePage()),
           GoRoute(path: '/map', builder: (_, __) => const MapPage()),
           GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
         ],

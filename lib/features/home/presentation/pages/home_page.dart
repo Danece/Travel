@@ -21,10 +21,17 @@ class AppShell extends StatelessWidget {
 
   final Widget child;
 
+  // NavigationBar 索引對應表（共 5 個分頁）：
+  //   0 → /           首頁
+  //   1 → /marker     標記列表
+  //   2 → /timeline   時間軸
+  //   3 → /map        地圖
+  //   4 → /settings   設定
   static int _locationToIndex(String location) {
     if (location.startsWith('/marker')) return 1;
-    if (location.startsWith('/map')) return 2;
-    if (location.startsWith('/settings')) return 3;
+    if (location.startsWith('/timeline')) return 2;
+    if (location.startsWith('/map')) return 3;
+    if (location.startsWith('/settings')) return 4;
     return 0;
   }
 
@@ -33,8 +40,10 @@ class AppShell extends StatelessWidget {
       case 1:
         return '/marker';
       case 2:
-        return '/map';
+        return '/timeline';
       case 3:
+        return '/map';
+      case 4:
         return '/settings';
       default:
         return '/';
@@ -62,6 +71,12 @@ class AppShell extends StatelessWidget {
             icon: const Icon(Icons.place_outlined),
             selectedIcon: const Icon(Icons.place),
             label: l10n.navMarkers,
+          ),
+          // 時間軸分頁：以時間順序瀏覽所有旅遊標記
+          NavigationDestination(
+            icon: const Icon(Icons.timeline),
+            selectedIcon: const Icon(Icons.timeline),
+            label: l10n.navTimeline,
           ),
           NavigationDestination(
             icon: const Icon(Icons.map_outlined),

@@ -2,7 +2,7 @@ name: travel_mark
 description: "A Flutter travel journal app with map markers and backup features."
 publish_to: 'none'
 
-version: 1.3.0+13
+version: 1.4.0+14
 
 environment:
   sdk: ^3.5.0

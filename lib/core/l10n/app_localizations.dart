@@ -16,6 +16,7 @@ class AppLocalizations {
   // ── Navigation ────────────────────────────────────────────────────────────
   String get navHome => isEn ? 'Home' : '首頁';
   String get navMarkers => isEn ? 'Markers' : '標記';
+  String get navTimeline => isEn ? 'Timeline' : '時間軸';
   String get navMap => isEn ? 'Map' : '地圖';
   String get navSettings => isEn ? 'Settings' : '設定';
 
