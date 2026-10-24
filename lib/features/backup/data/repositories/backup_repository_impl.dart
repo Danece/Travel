@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:archive/archive_io.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
+import 'package:http/http.dart' show ClientException;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -17,6 +18,7 @@ const _fileFields = 'id,name,size,createdTime';
 const _maxBackups = 5;
 const _kDbEntryName = 'travel_mark.db';
 const _kPhotosPrefix = 'photos/';
+const _maxDownloadRetries = 3;
 
 class BackupRepositoryImpl implements BackupRepository {
   // ══════════════════════════════════════════════════════════════════════════
@@ -71,7 +73,7 @@ class BackupRepositoryImpl implements BackupRepository {
   // ══════════════════════════════════════════════════════════════════════════
 
   /// 流程：
-  ///   1. 串流下載 ZIP 至暫存檔（不把整個 ZIP 載入記憶體）
+  ///   1. 串流下載 ZIP 至暫存檔（含重試，不把整個 ZIP 載入記憶體）
   ///   2. 從暫存檔解壓縮 DB 與照片
   ///   3. 清理暫存檔
   @override
@@ -82,42 +84,94 @@ class BackupRepositoryImpl implements BackupRepository {
     final tempZipPath = p.join(tempDir.path, 'restore_temp.zip');
 
     try {
-      // 1. 串流下載至暫存檔
-      final response = await api.files.get(
-        fileId,
-        downloadOptions: drive.DownloadOptions.fullMedia,
-      ) as drive.Media;
+      // 1. 串流下載至暫存檔（網路中斷時自動重試）
+      await _downloadWithRetry(api, fileId, tempZipPath);
 
-      final sink = File(tempZipPath).openWrite();
-      await response.stream.pipe(sink);
-      await sink.close();
-
-      // 2. 從暫存檔解壓縮（逐檔讀取，記憶體只需容納單一檔案）
+      // 2. 從暫存檔解壓縮
+      // InputFileStream 是 lazy 讀取：decodeBuffer 只讀目錄結構，
+      // file.content 才真正讀取各檔內容，因此 close() 必須在迴圈結束後才能呼叫。
       final inputStream = InputFileStream(tempZipPath);
       final archive = ZipDecoder().decodeBuffer(inputStream);
-      inputStream.close();
 
       await DatabaseHelper.instance.closeDatabase();
       final dbPath = await DatabaseHelper.instance.getDatabasePath();
       final docsDir = await getApplicationDocumentsDirectory();
 
-      for (final file in archive) {
-        if (!file.isFile) continue;
-        final data = file.content as List<int>;
+      try {
+        for (final file in archive) {
+          if (!file.isFile) continue;
+          final data = file.content as List<int>;
 
-        if (file.name == _kDbEntryName) {
-          await File(dbPath).writeAsBytes(data);
-        } else if (file.name.startsWith(_kPhotosPrefix)) {
-          final photoPath = p.join(docsDir.path, file.name);
-          await Directory(p.dirname(photoPath)).create(recursive: true);
-          await File(photoPath).writeAsBytes(data);
+          if (file.name == _kDbEntryName) {
+            await File(dbPath).writeAsBytes(data);
+          } else if (file.name.startsWith(_kPhotosPrefix)) {
+            final photoPath = p.join(docsDir.path, file.name);
+            await Directory(p.dirname(photoPath)).create(recursive: true);
+            await File(photoPath).writeAsBytes(data);
+          }
         }
+      } finally {
+        inputStream.close();
       }
     } finally {
       // 3. 清理暫存 ZIP
       final tmp = File(tempZipPath);
       if (tmp.existsSync()) await tmp.delete();
     }
+  }
+
+  /// 下載 Drive 檔案至本機路徑，失敗時最多重試 [_maxDownloadRetries] 次。
+  /// 每先向 Metadata API 取得精確檔案大小，下載後逐次驗證是否完整。
+  Future<void> _downloadWithRetry(
+    drive.DriveApi api,
+    String fileId,
+    String destPath,
+  ) async {
+    // 預先取得 Drive 上的檔案大小（比 Content-Length 更可靠）
+    final meta = await api.files.get(fileId, $fields: 'size') as drive.File;
+    final expectedBytes = int.tryParse(meta.size ?? '');
+
+    Object? lastError;
+
+    for (var attempt = 0; attempt < _maxDownloadRetries; attempt++) {
+      if (attempt > 0) {
+        await Future.delayed(Duration(seconds: 2 * attempt));
+      }
+
+      try {
+        final response = await api.files.get(
+          fileId,
+          downloadOptions: drive.DownloadOptions.fullMedia,
+        ) as drive.Media;
+
+        final sink = File(destPath).openWrite();
+        try {
+          await response.stream.pipe(sink);
+        } catch (e) {
+          await sink.close();
+          rethrow;
+        }
+
+        // 用 metadata size 驗證（response.length 可能為 null）
+        final knownSize = expectedBytes ?? response.length;
+        if (knownSize != null) {
+          final actualSize = await File(destPath).length();
+          if (actualSize != knownSize) {
+            throw ClientException(
+              'Incomplete download: got $actualSize of $knownSize bytes',
+            );
+          }
+        }
+
+        return; // 下載成功
+      } on ClientException catch (e) {
+        lastError = e;
+      } on SocketException catch (e) {
+        lastError = e;
+      }
+    }
+
+    throw lastError!;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
