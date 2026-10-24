@@ -2,6 +2,7 @@ import 'dart:math' show pi;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -28,9 +29,15 @@ class _SplashPageState extends State<SplashPage>
   // ── 退場 ────────────────────────────────────────────────────────────────────
   late final Animation<double> _exitOpacity;
 
+  String _versionText = '';
+
   @override
   void initState() {
     super.initState();
+
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _versionText = 'v${info.version}');
+    });
 
     _ctrl = AnimationController(
       vsync: this,
@@ -207,13 +214,13 @@ class _SplashPageState extends State<SplashPage>
               // ── 底部版本文字 ─────────────────────────────────────────────
               FadeTransition(
                 opacity: _subtitleOpacity,
-                child: const Align(
+                child: Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
-                    padding: EdgeInsets.only(bottom: 36),
+                    padding: const EdgeInsets.only(bottom: 36),
                     child: Text(
-                      'v1.1.0',
-                      style: TextStyle(
+                      _versionText,
+                      style: const TextStyle(
                         color: Colors.white30,
                         fontSize: 12,
                         letterSpacing: 1.5,
